@@ -51,6 +51,7 @@ export function beepRecord() {
 let wakeWanted = false;
 let sentinel = null;
 let wakeListener = null;
+let wakeError = '';
 
 export const wakeLockSupported = () => 'wakeLock' in navigator;
 
@@ -59,9 +60,11 @@ async function acquire() {
   if (sentinel && !sentinel.released) return;
   try {
     sentinel = await navigator.wakeLock.request('screen');
+    wakeError = '';
     sentinel.addEventListener('release', () => { sentinel = null; wakeListener?.(); });
   } catch (e) {
     sentinel = null;
+    wakeError = `${e?.name || 'Erreur'} : ${e?.message || ''}`.trim();
     console.warn('Wake lock refusé', e);
   }
   wakeListener?.();
@@ -79,6 +82,7 @@ export function keepScreenOn(on, onChange) {
 }
 
 export const screenLocked = () => !!(sentinel && !sentinel.released);
+export const lastWakeError = () => wakeError;
 
 /* ---------- Timer ---------- */
 // L'état repose sur une heure de fin absolue : le décompte reste juste même si la page a été mise en pause.

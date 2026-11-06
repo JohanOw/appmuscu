@@ -5,11 +5,11 @@ import { DEFAULT_EXERCISES, DEFAULT_WORKOUTS, DEFAULT_REST_SEC, CATALOG_IMG_BASE
 import { epley, bestOf, detectPR, previousSetsFor, lastTime, sessionStats, exerciseSeries, nextWorkout, parseNum, formatDuration, fmtKg, round1, suggestNext, trainedDays, warmupWeight, supersetGroup, supersetLabels, weekStreak, weekStart } from './stats.js';
 import { sprite, mascotPop, motivationPop, showSplash, showFinale, sessionKind, FLAME } from './mascot.js';
 import { DEFAULT_CUES } from './cues.js';
-import { RestTimer, unlockAudio, beepEnd, beepRecord, keepScreenOn, wakeLockSupported, fmtClock } from './timer.js';
+import { RestTimer, unlockAudio, beepEnd, beepRecord, keepScreenOn, wakeLockSupported, screenLocked, lastWakeError, fmtClock } from './timer.js';
 import { buildBackupFile, shareOrDownload, readBackup, restoreBackup } from './backup.js';
 import { lineChart } from './charts.js';
 
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.1.1';
 
 /* ---------- État en mémoire ---------- */
 const state = {
@@ -104,7 +104,11 @@ async function boot() {
   if (tt?.endAt > Date.now() - 30 * 60000) timer.resume(tt.endAt, tt.total);
   // Écran jamais en veille tant que l'appli est ouverte (redemandé au premier appui si le navigateur l'exige).
   keepScreenOn(true);
-  document.addEventListener('pointerdown', () => keepScreenOn(true), { once: true });
+  // iOS n'accorde le maintien qu'après un vrai geste : la fin d'un toucher (touchend) ou un clic,
+  // pas pointerdown. Redemandé à chaque geste tant qu'il n'est pas actif.
+  const wakeRetry = () => { if (!screenLocked()) keepScreenOn(true); };
+  document.addEventListener('touchend', wakeRetry, { passive: true });
+  document.addEventListener('click', wakeRetry);
   // Stockage persistant : évite que Safari efface les données (accordé ou non par le navigateur).
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   window.addEventListener('hashchange', route);
@@ -1267,7 +1271,7 @@ async function viewSettings() {
     <h3 class="sec">À propos</h3>
     <section class="card small"><p>AppMuscu v${APP_VERSION} · usage personnel.</p>
       <p class="muted">Images d'exercices : <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">free-exercise-db</a> (domaine public, Unlicense).</p>
-      <p class="muted">Maintien de l'écran : ${wakeLockSupported() ? 'pris en charge' : 'non pris en charge par ce navigateur'}.</p></section>`, {
+      <p class="muted">Maintien de l'écran : ${!wakeLockSupported() ? 'non pris en charge par ce navigateur' : screenLocked() ? 'actif' : `inactif${lastWakeError() ? ` (${esc(lastWakeError())})` : ''}`}.</p></section>`, {
     rest: async (el) => { state.restSec = readRest(el); await db.kvSet('restSec', state.restSec); toast('Repos par défaut enregistré'); },
     warmon: async (el) => { state.warm.on = el.checked; await db.kvSet('warm', state.warm); toast(el.checked ? 'Échauffement activé' : 'Échauffement désactivé'); },
     warmpct: async (el) => { state.warm.pct = +el.value; await db.kvSet('warm', state.warm); toast('Charge d\'échauffement enregistrée'); },

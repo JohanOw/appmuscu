@@ -286,3 +286,12 @@ Johan : voir le MVP en local (http://localhost:8080), puis mise en ligne GitHub 
 - Le 1er déploiement est resté en file d'attente jusqu'au délai max (échec côté GitHub) ; relancé par un commit vide, OK en 2 min.
 - Publier : incrémenter `VERSION` dans `sw.js` (et `APP_VERSION`), puis `git add -A`, `git commit`, `git push`.
 - Prochaine étape : installation et tests sur l'iPhone, retours via le carnet de bugs.
+
+## V2.1.1 (2026-11-06) : maintien de l'écran
+- Constat de Johan (iPhone, iOS 26.6.2, lancé depuis l'icône) : l'écran se met en veille au bout de 30 s. Verrouillage automatique sur « Jamais » refusé par Johan.
+- Cause probable : la demande était relancée sur `pointerdown`, qui n'est pas un geste reconnu par iOS sur écran tactile. Désormais relancée sur `touchend` et `click` tant que le maintien n'est pas actif.
+- Réglages > À propos : état réel du maintien (actif, ou inactif avec l'erreur renvoyée).
+- Testé : syntaxe, 15 tests, affichage de l'état (le navigateur de test refuse le maintien). Non confirmé sur iPhone.
+
+## Backlog prochaine version
+- Bouton de suppression de séance trop petit : ajouter un grand bouton rouge « Supprimer la séance » en dessous (demande de Johan).

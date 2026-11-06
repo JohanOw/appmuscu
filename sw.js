@@ -1,6 +1,6 @@
 // Service worker : met l'appli en cache pour qu'elle marche sans réseau.
 // IMPORTANT : incrémenter VERSION à chaque mise en ligne, sinon l'iPhone garde l'ancienne version.
-const VERSION = 'appmuscu-v2.1.0';
+const VERSION = 'appmuscu-v2.1.1';
 const FILES = [
   './',
   './index.html',
