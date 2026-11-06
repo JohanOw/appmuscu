@@ -279,3 +279,10 @@ Johan : voir le MVP en local (http://localhost:8080), puis mise en ligne GitHub 
 - Fiabilité : adresse inconnue → accueil ; redirections sans entrée d'historique ; retour en haut à chaque écran ; séance écrite quand l'appli passe en arrière-plan ; double appui sur ✓ ignoré ; échauffement exclu du décompte de fin ; superset orphelin corrigé ; IndexedDB rouverte si iOS ferme la connexion ; import atomique et contrôle des identifiants ; son relancé après interruption iOS ; précache SW sans cache HTTP ; pas de zoom au double appui ; champs des notes à 16 px (pas de zoom iOS) ; en-tête de séance sous l'encoche.
 - Non appliqué (revue) : cibles tactiles < 44 px, filtres animés (flash, flamme, drop-shadow, néons), neonflick qui écrase neonpulse, recalcul des stats, modale et clavier.
 - Testé (navigateur intégré 430×932) : consigne Incline (189 px dans une image de 244 px, texte entier), carnet ajout / retrait / bouton copie, modale de suppression (3 choix, annulée), modale de purge (annulée), adresse inconnue, redirection sans séance, position Pull, aucune erreur console. 15 tests OK, `node --check` OK. Non testé : suppression réellement exécutée, copie presse-papiers, iPhone.
+
+## Mise en ligne (2026-11-06)
+- Dépôt public https://github.com/JohanOw/appmuscu (branche `main`), auteur `JohanOw` avec adresse noreply. Exclus : `bank/`, `maquettes/`, `.claude/`.
+- GitHub Pages actif : https://johanow.github.io/appmuscu/ (v2.1.0). Vérifié : page, sw.js, JS, catalogue et WebP en 200 ; l'appli démarre en ligne, service worker actif, aucune erreur console (navigateur intégré).
+- Le 1er déploiement est resté en file d'attente jusqu'au délai max (échec côté GitHub) ; relancé par un commit vide, OK en 2 min.
+- Publier : incrémenter `VERSION` dans `sw.js` (et `APP_VERSION`), puis `git add -A`, `git commit`, `git push`.
+- Prochaine étape : installation et tests sur l'iPhone, retours via le carnet de bugs.
