@@ -37,17 +37,13 @@ Principe : le code de l'appli est publié gratuitement sur GitHub Pages (un site
 
 ## 3. Envoyer les fichiers
 
-`[PC]` Sur la page du dépôt vide :
+Fait avec Git depuis le dossier `C:\Users\Johan\Desktop\Claude\AppMuscu` (dépôt `https://github.com/JohanOw/appmuscu`).
 
-1. Clique sur le lien **uploading an existing file**.
-2. Ouvre le dossier `C:\Users\Johan\Desktop\Claude\AppMuscu` dans l'Explorateur Windows.
-3. Sélectionne et glisse dans la page GitHub :
-   - `index.html`, `manifest.webmanifest`, `sw.js`
-   - les dossiers `css`, `js`, `data`, `img`
-4. Facultatif (inutiles au fonctionnement) : `tools`, `tests`, `STATE.md`, ce tuto. N'envoie pas le dossier `.claude`.
-5. Attends que tous les fichiers soient listés, puis clique **Commit changes**.
+- Auteur des envois : `JohanOw`, adresse privée `127040355+JohanOw@users.noreply.github.com` (le Gmail n'apparaît pas publiquement).
+- Exclus par `.gitignore` : `bank/`, `maquettes/`, `.claude/`.
+- Au premier envoi, une fenêtre GitHub s'ouvre sur le PC : **Sign in with your browser**, connexion faite par Johan. Windows garde ensuite la connexion.
 
-Contrôle : à la racine du dépôt, tu dois voir `index.html` directement, pas un dossier `AppMuscu` qui le contient. Sinon l'adresse ne marchera pas.
+Contrôle : à la racine du dépôt sur GitHub, tu dois voir `index.html` directement, pas un dossier `AppMuscu` qui le contient.
 
 ---
 
@@ -94,9 +90,23 @@ Restaurer (nouveau téléphone ou réinstallation) : roue crantée > **Importer 
 
 ## 7. Mettre à jour l'appli plus tard
 
-1. `[PC]` Modifie les fichiers en local.
-2. `[PC]` Dans `sw.js`, incrémente la version, par exemple `appmuscu-v1.0.0` devient `appmuscu-v1.0.1`. **Indispensable** : sinon l'iPhone continue d'utiliser l'ancienne version en cache.
-3. `[PC]` Sur GitHub, **Add file** > **Upload files**, glisse les fichiers modifiés (dont `sw.js`), puis **Commit changes**. Attends 1 à 2 minutes.
+1. `[PC]` Modifie les fichiers en local (ou demande à Claude, puis dis « publie »).
+2. `[PC]` Dans `sw.js`, incrémente la version, par exemple `appmuscu-v2.1.0` devient `appmuscu-v2.1.1`. **Indispensable** : sinon l'iPhone continue d'utiliser l'ancienne version en cache.
+3. `[PC, Git Bash]` Dans le dossier AppMuscu :
+
+   ```bash
+   git add -A
+   ```
+
+   ```bash
+   git commit -m "Description du changement"
+   ```
+
+   ```bash
+   git push
+   ```
+
+   Attends 1 à 2 minutes que GitHub Pages republie.
 4. `[iPhone]` Ouvre AppMuscu avec du réseau, ferme-la complètement (balayer vers le haut), puis rouvre-la. La nouvelle version est chargée.
 
 Les données ne sont pas touchées par une mise à jour. Fais quand même un export avant, par sécurité.
