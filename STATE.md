@@ -293,5 +293,5 @@ Johan : voir le MVP en local (http://localhost:8080), puis mise en ligne GitHub 
 - Réglages > À propos : état réel du maintien (actif, ou inactif avec l'erreur renvoyée).
 - Testé : syntaxe, 15 tests, affichage de l'état (le navigateur de test refuse le maintien). Non confirmé sur iPhone.
 
-## Backlog prochaine version
-- Bouton de suppression de séance trop petit : ajouter un grand bouton rouge « Supprimer la séance » en dessous (demande de Johan).
+## Backlog
+Bugs, améliorations et idées : voir `BACKLOG.md` (tenu à jour à la place de ce fichier).
