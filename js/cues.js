@@ -1,0 +1,28 @@
+// Consignes d'exécution par défaut des exercices fournis (rédaction maison, modifiables dans l'appli).
+// Ce sont des repères généraux, pas un avis médical ni un programme personnalisé.
+export const DEFAULT_CUES = {
+  'Barbell_Bench_Press_-_Medium_Grip': "Omoplates serrées et basses, pieds bien ancrés au sol.\nDescente contrôlée (2 s) jusqu'au bas des pectoraux, coudes à environ 45° du buste.\nPousser sans décoller les fesses du banc.",
+  Incline_Dumbbell_Press: "Banc à 30° environ, omoplates serrées.\nDescendre les haltères sur les côtés du haut des pectoraux, contrôlé.\nRemonter en rapprochant les haltères sans les cogner.",
+  Dumbbell_Bench_Press: "Omoplates serrées, poignets alignés au-dessus des coudes.\nDescente lente, bonne amplitude en bas.\nPousser en serrant les pectoraux en haut.",
+  Cable_Crossover: "Buste légèrement penché, coudes à peine fléchis et fixes.\nRamener les mains en arc de cercle, contracter 1 s en fin de mouvement.\nRetour lent, sans laisser les épaules partir vers l'avant.",
+  Standing_Military_Press: "Gainage serré, fessiers contractés, pas de cambrure.\nBarre qui part du haut des pectoraux et monte au-dessus de la tête.\nPasser la tête sous la barre en haut.",
+  Dumbbell_Shoulder_Press: "Dos plaqué au dossier, abdos serrés.\nDescendre les haltères à hauteur d'oreilles, contrôlé.\nPousser sans verrouiller brutalement les coudes.",
+  Side_Lateral_Raise: "Coudes légèrement fléchis, buste fixe, pas d'élan.\nMonter jusqu'à hauteur d'épaules, le coude mène le mouvement.\nDescente lente (2 à 3 s).",
+  Triceps_Pushdown: "Coudes collés au corps et immobiles.\nPousser jusqu'à l'extension complète, contracter 1 s.\nRemonter lentement sans que les coudes avancent.",
+  'Dips_-_Triceps_Version': "Buste droit pour cibler les triceps, épaules basses.\nDescendre jusqu'à environ 90° aux coudes, sans douleur à l'épaule.\nRemonter en poussant fort, sans balancer.",
+  Pullups: "Coudes dans les poches : tirer les coudes vers les hanches.\nPartir bras tendus, épaules engagées, menton au-dessus de la barre.\nDescente contrôlée, pas d'élan des jambes.",
+  'Wide-Grip_Lat_Pulldown': "Poitrine sortie, léger recul du buste.\nTirer la barre vers le haut des pectoraux, coudes vers le bas.\nRemonter lentement jusqu'à l'étirement des dorsaux.",
+  Bent_Over_Barbell_Row: "Dos plat, buste penché à environ 45°, genoux fléchis.\nTirer la barre vers le nombril, serrer les omoplates en haut.\nDescente contrôlée, sans arrondir le dos.",
+  Seated_Cable_Rows: "Dos droit, poitrine sortie, pas de balancier du buste.\nTirer vers le nombril, coudes près du corps, omoplates serrées.\nRetour lent jusqu'à l'étirement.",
+  Face_Pull: "Corde à hauteur de visage.\nTirer vers le front en écartant les mains, coudes hauts.\nContracter l'arrière des épaules 1 s, retour lent.",
+  Barbell_Curl: "Coudes fixes le long du corps, pas d'élan du dos.\nMonter en serrant les biceps, 1 s de contraction en haut.\nDescente lente jusqu'à l'extension.",
+  Hammer_Curls: "Prise neutre (pouces vers le haut), coudes fixes.\nMonter sans tourner le poignet.\nDescente contrôlée.",
+  Barbell_Squat: "Pieds largeur d'épaules, gainage serré avant de descendre.\nGenoux dans l'axe des pieds, dos neutre.\nDescendre au moins cuisses parallèles si la mobilité le permet, remonter en poussant le sol.",
+  Barbell_Deadlift: "Barre contre les tibias, dos plat, épaules au-dessus de la barre.\nPousser le sol avec les jambes, la barre frôle le corps.\nVerrouiller hanches et genoux en haut, sans se pencher en arrière.",
+  Romanian_Deadlift: "Genoux légèrement fléchis et fixes, dos plat.\nReculer les hanches, la barre descend le long des cuisses.\nS'arrêter à l'étirement des ischios, remonter en poussant les hanches.",
+  Leg_Press: "Bas du dos collé au dossier tout du long.\nPieds largeur d'épaules, genoux dans l'axe des pieds.\nDescente contrôlée, ne pas verrouiller les genoux en haut.",
+  Lying_Leg_Curls: "Hanches plaquées sur le banc.\nRamener les talons vers les fesses, contracter 1 s.\nDescente lente.",
+  Leg_Extensions: "Dos calé, genoux alignés avec l'axe de la machine.\nTendre les jambes et contracter les quadriceps 1 s en haut.\nRedescendre lentement.",
+  Standing_Calf_Raises: "Amplitude complète : talons bien bas, puis sur la pointe.\nPause 1 s en haut, pas de rebond en bas.\nGenoux tendus sans être verrouillés.",
+  Seated_Calf_Raise: "Amplitude complète, pause en haut et en bas.\nMouvement lent, sans rebond.",
+};

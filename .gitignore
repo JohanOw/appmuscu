@@ -1,0 +1,6 @@
+# Privé : jamais publié (GIF sources, maquettes, livres de référence)
+bank/
+maquettes/
+
+# Réglages locaux de Claude Code
+.claude/
