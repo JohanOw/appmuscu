@@ -1,6 +1,8 @@
 # Privé : jamais publié (GIF sources, maquettes, livres de référence)
 bank/
 maquettes/
+# Sauvegardes perso (séances, poids) : jamais dans le dépôt public
+save/
 
 # Réglages locaux de Claude Code
 .claude/

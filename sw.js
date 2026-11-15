@@ -1,6 +1,6 @@
 // Service worker : met l'appli en cache pour qu'elle marche sans réseau.
 // IMPORTANT : incrémenter VERSION à chaque mise en ligne, sinon l'iPhone garde l'ancienne version.
-const VERSION = 'appmuscu-v2.1.1';
+const VERSION = 'appmuscu-v2.2.0';
 const FILES = [
   './',
   './index.html',
@@ -40,6 +40,7 @@ const FILES = [
   "./img/mascotte/victoire.webp",
   './js/timer.js',
   './js/backup.js',
+  './js/sync.js',
   './js/charts.js',
   './data/catalog.json',
   './img/icons/icon-180.png',

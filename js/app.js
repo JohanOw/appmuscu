@@ -7,9 +7,10 @@ import { sprite, mascotPop, motivationPop, showSplash, showFinale, sessionKind, 
 import { DEFAULT_CUES } from './cues.js';
 import { RestTimer, unlockAudio, beepEnd, beepRecord, keepScreenOn, wakeLockSupported, screenLocked, lastWakeError, fmtClock } from './timer.js';
 import { buildBackupFile, shareOrDownload, readBackup, restoreBackup } from './backup.js';
+import * as sync from './sync.js';
 import { lineChart } from './charts.js';
 
-export const APP_VERSION = '2.1.1';
+export const APP_VERSION = '2.2.0';
 
 /* ---------- État en mémoire ---------- */
 const state = {
@@ -88,7 +89,12 @@ const BACK_HOME = '<a class="back" href="#/">‹ Entraînement</a>';
 
 /* ---------- Démarrage ---------- */
 // Appli mise en arrière-plan (ou fermée) : la séance en cours est écrite sans attendre.
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && state.active) saveActive(true); });
+// Synchro GitHub : envoi si les données ont changé (requête « keepalive » pour survivre à la mise en arrière-plan).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return;
+  const save = state.active ? saveActive(true) : Promise.resolve();
+  Promise.resolve(save).then(() => sync.pushNow({ keepalive: true })).catch(() => {});
+});
 
 async function boot() {
   const seeded = await db.kvGet('seeded');
@@ -115,6 +121,8 @@ async function boot() {
   route();
   if (state.splash) showSplash({ line: state.active ? 'Prêt pour une nouvelle séance ?' : splashLine() });
   registerSW();
+  // Rattrape un envoi raté (pas de réseau, appli fermée trop vite).
+  sync.pushNow().catch(() => {});
 }
 
 /** Bulle de l'écran d'ouverture : jours depuis la dernière séance, sinon message standard. */
@@ -814,7 +822,7 @@ function viewRecap(id) {
         <div><b>${st.prs.length}</b><span>records</span></div>
       </div></div></section>
     <section class="card"><h3>Sauvegarde</h3>
-      <p class="small muted">Tes données ne sont que sur ce téléphone. Un appui ouvre la feuille de partage : choisis « Enregistrer dans Fichiers » (iCloud Drive) ou Mail.</p>
+      <p class="small muted" id="syncLine">…</p>
       <button class="btn primary big" data-act="save" id="saveBtn" disabled>Préparation…</button></section>
     ${st.prs.length ? `<h3 class="sec">${FLAME} Records battus</h3><ul class="list card">${st.prs.map((p) => `<li>${FLAME} <strong>${esc(p.name)}</strong> : ${fmtKg(p.w)} kg × ${p.r} <span class="muted small">(${p.pr.map((x) => labels[x]).join(', ')})</span></li>`).join('')}</ul>` : ''}
     <h3 class="sec">Détail</h3><ul class="list card">${s.items.map((it, k) => `<li class="row"><div class="grow"><strong>${esc(it.name)}</strong><div class="muted small">${it.sets.map(fmtSet).join(' · ')}</div>${setNotes(it.sets)}</div><button class="btn icon sm" data-act="delitem" data-k="${k}" aria-label="Retirer cet exercice de la séance">✕</button></li>`).join('')}</ul>
@@ -846,10 +854,23 @@ function viewRecap(id) {
     },
   });
   // Fichier préparé à l'avance : sur iOS, le partage doit partir directement du clic.
-  buildBackupFile().then((f) => {
+  Promise.all([buildBackupFile(), sync.getConfig()]).then(async ([f, cfg]) => {
     state.backupFile = f;
     const b = document.getElementById('saveBtn');
-    if (b) { b.disabled = false; b.textContent = 'Sauvegarder'; }
+    const line = document.getElementById('syncLine');
+    if (b) { b.disabled = false; b.textContent = cfg?.token ? 'Exporter aussi un fichier' : 'Sauvegarder'; if (cfg?.token) b.className = 'btn outline big'; }
+    if (!line) return;
+    if (!cfg?.token) {
+      line.textContent = 'Tes données ne sont que sur ce téléphone. Un appui ouvre la feuille de partage : choisis « Enregistrer dans Fichiers » (iCloud Drive) ou Mail. Pour que ce soit automatique, active la synchro GitHub dans Réglages.';
+      return;
+    }
+    line.textContent = 'Envoi sur GitHub…';
+    try {
+      await sync.pushNow();
+      if (line.isConnected) line.textContent = `Sauvegardé sur GitHub ✓ (${cfg.owner}/${cfg.repo})`;
+    } catch (e) {
+      if (line.isConnected) line.innerHTML = `<span class="danger-text">${esc(e.message)}</span> Nouvel essai au prochain lancement de l'appli.`;
+    }
   });
 }
 
@@ -1230,7 +1251,7 @@ async function viewSettings() {
   const wm = state.warm;
   const pctOpts = [40, 50, 60, 70, 80].map((v) => `<option value="${v}" ${v === wm.pct ? 'selected' : ''}>${v} %</option>`).join('');
   const repOpts = Array.from({ length: 16 }, (_, k) => k + 5).map((v) => `<option value="${v}" ${v === wm.reps ? 'selected' : ''}>${v}</option>`).join('');
-  const [lastExport, bugs] = await Promise.all([db.kvGet('lastExport'), db.kvGet('bugs')]);
+  const [lastExport, bugs, syncCfg] = await Promise.all([db.kvGet('lastExport'), db.kvGet('bugs'), sync.getConfig()]);
   let bugList = Array.isArray(bugs) ? bugs : [];
   if (location.hash !== '#/settings') return; // l'utilisateur a changé d'écran entre-temps
   render(`<header class="top">${BACK_HOME}</header><h1 class="h1">Réglages</h1>
@@ -1260,9 +1281,11 @@ async function viewSettings() {
       <button class="btn ghost" data-act="bugcopy" id="bugCopy" ${bugList.length ? '' : 'hidden'}>Copier la liste</button>
       <p class="muted small">Gardé sur ce téléphone et inclus dans l'export.</p>
     </section>
-    <h3 class="sec">Sauvegarde</h3>
+    <h3 class="sec">Synchro GitHub</h3>
+    ${syncSectionHtml(syncCfg)}
+    <h3 class="sec">Sauvegarde fichier</h3>
     <section class="card">
-      <p class="small">Tes données restent uniquement sur ce téléphone. Exporte régulièrement un fichier (Mail, Fichiers / iCloud Drive) pour pouvoir les restaurer.</p>
+      <p class="small">${syncCfg?.token ? 'En secours de la synchro : un fichier' : 'Tes données restent uniquement sur ce téléphone. Exporte régulièrement un fichier'} (Mail, Fichiers / iCloud Drive). Il porte toujours le même nom : si iOS le propose, choisis « Remplacer ». Les photos d'exercices n'y sont pas incluses.</p>
       <p class="muted small">Dernier export : ${lastExport ? new Date(lastExport).toLocaleString('fr-FR') : 'jamais'}</p>
       <button class="btn primary big" data-act="export" id="exportBtn" disabled>Préparation…</button>
       <label class="btn big file">Importer une sauvegarde<input type="file" accept="application/json,.json" data-change="import" hidden></label>
@@ -1311,8 +1334,47 @@ async function viewSettings() {
         await restoreBackup(data);
         await reload();
         toast('Sauvegarde restaurée');
+        sync.pushNow().catch(() => {});
         go('#/');
       } catch (e) { modal(`<p>${esc(e.message)}</p>`, [{ label: 'OK', value: true }]); }
+    },
+    syncconnect: async (el) => {
+      const repo = document.getElementById('syncRepo').value;
+      const tok = document.getElementById('syncTok').value;
+      el.disabled = true; el.textContent = 'Connexion…';
+      try {
+        const remote = await sync.connect(repo, tok);
+        const remoteN = remote?.data.sessions.length || 0;
+        const localN = state.sessions.length;
+        if (!remoteN) {
+          await sync.pushNow({ force: true });
+          toast('Connecté : sauvegarde envoyée sur GitHub');
+        } else if (!localN) {
+          await restoreFromGitHub();
+        } else {
+          const choice = await modal(`<p>Une sauvegarde existe déjà sur GitHub : ${remoteN} séance${remoteN > 1 ? 's' : ''}, du ${new Date(remote.data.exportedAt).toLocaleString('fr-FR')}. Ce téléphone en a ${localN}.</p><p>Laquelle garder ? L'autre reste récupérable dans l'historique GitHub.</p>`,
+            [{ label: 'Annuler', value: null }, { label: 'Celle du téléphone', value: 'push' }, { label: 'Celle de GitHub', value: 'pull', cls: 'primary' }]);
+          if (choice === 'push') { await sync.pushNow({ force: true }); toast('Sauvegarde du téléphone envoyée'); }
+          else if (choice === 'pull') await restoreFromGitHub();
+          else { await sync.disconnect(); toast('Connexion annulée'); }
+        }
+      } catch (e) { await modal(`<p>${esc(e.message)}</p>`, [{ label: 'OK', value: true }]); }
+      if (location.hash === '#/settings') viewSettings();
+    },
+    syncnow: async (el) => {
+      el.disabled = true; el.textContent = 'Envoi…';
+      try { await sync.pushNow({ force: true }); toast('Sauvegardé sur GitHub ✓'); } catch (e) { toast(e.message, 5000); }
+      viewSettings();
+    },
+    syncpull: async () => {
+      if (!(await confirmBox('Remplacer les données de ce téléphone par la sauvegarde GitHub ?', 'Remplacer', 'danger'))) return;
+      try { await restoreFromGitHub(); go('#/'); } catch (e) { modal(`<p>${esc(e.message)}</p>`, [{ label: 'OK', value: true }]); }
+    },
+    syncoff: async () => {
+      if (!(await confirmBox('Déconnecter ce téléphone ? Le jeton est effacé du téléphone. La sauvegarde sur GitHub reste intacte.', 'Déconnecter', 'danger'))) return;
+      await sync.disconnect();
+      toast('Synchro désactivée');
+      viewSettings();
     },
   });
   function refreshBugs() {
@@ -1328,6 +1390,32 @@ async function viewSettings() {
     const persisted = await navigator.storage.persisted();
     p.textContent = persisted ? 'Stockage persistant accordé par le navigateur.' : 'Stockage persistant non accordé : l\'export régulier est d\'autant plus important.';
   }
+}
+
+/** Carte « Synchro GitHub » des Réglages : formulaire de connexion, ou état et actions. */
+function syncSectionHtml(cfg) {
+  if (!cfg?.token) return `<section class="card sync">
+    <p class="small">Sauvegarde automatique dans un dépôt GitHub <strong>privé</strong> : envoyée en fin de séance et quand tu quittes l'appli. Si le téléphone est effacé ou perdu, reconnecte-toi ici pour tout récupérer.</p>
+    <input class="field" id="syncRepo" type="text" placeholder="pseudo/nom-du-depot" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
+    <input class="field" id="syncTok" type="password" placeholder="Jeton github_pat_…" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false">
+    <button class="btn primary big" data-act="syncconnect">Connecter</button>
+    <p class="muted small">Le jeton reste sur ce téléphone : il n'est ni exporté ni envoyé ailleurs qu'à GitHub. Garde-le dans tes mots de passe pour pouvoir te reconnecter.</p></section>`;
+  const when = (t) => new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  return `<section class="card sync">
+    <p class="small">Connecté à <strong>${esc(cfg.owner)}/${esc(cfg.repo)}</strong>.</p>
+    <p class="muted small">Dernier envoi : ${cfg.lastSync ? when(cfg.lastSync) : 'pas encore'}</p>
+    ${cfg.lastError ? `<p class="small danger-text">Dernier échec (${when(cfg.lastErrorAt)}) : ${esc(cfg.lastError)}</p>` : ''}
+    <button class="btn primary big" data-act="syncnow">Synchroniser maintenant</button>
+    <button class="btn outline big" data-act="syncpull">Restaurer depuis GitHub</button>
+    <button class="btn ghost danger-text" data-act="syncoff">Déconnecter ce téléphone</button></section>`;
+}
+
+/** Remplace les données du téléphone par la sauvegarde GitHub, puis recharge l'appli. */
+async function restoreFromGitHub() {
+  timer.stop();
+  const data = await sync.pullAndRestore();
+  await reload();
+  toast(`${data.sessions.length} séance${data.sessions.length > 1 ? 's' : ''} récupérée${data.sessions.length > 1 ? 's' : ''} depuis GitHub`, 4000);
 }
 
 /* ---------- Service worker ---------- */

@@ -293,5 +293,15 @@ Johan : voir le MVP en local (http://localhost:8080), puis mise en ligne GitHub 
 - Réglages > À propos : état réel du maintien (actif, ou inactif avec l'erreur renvoyée).
 - Testé : syntaxe, 15 tests, affichage de l'état (le navigateur de test refuse le maintien). Non confirmé sur iPhone.
 
+## V2.2.0 (2026-11-15) : synchro GitHub et sauvegarde allégée (codé, pas encore en ligne)
+- Constats de Johan : chaque sauvegarde iCloud crée un nouveau fichier (cause confirmée : date dans le nom) ; données perdues après quelques jours (cause non confirmée, piste : icône ajoutée depuis la navigation privée).
+- Décision (option B, validée) : synchro automatique vers un dépôt GitHub PRIVÉ dédié, via un jeton « fine-grained » (Contents : Read and write). Un seul fichier `appmuscu.json` remplacé à chaque envoi, historique gardé par GitHub. Conflit : le dernier envoi gagne.
+- `js/sync.js` : client API « contents », refus d'un dépôt public, envoi quand l'appli passe en arrière-plan (`keepalive` si < 60 Ko) et au démarrage, saut si contenu inchangé (empreinte), relecture du sha et nouvel essai sur 409/422. Jeton dans kv `sync` : jamais exporté, conservé lors d'une restauration, perdu si les données du téléphone sont effacées (le garder dans le gestionnaire de mots de passe).
+- `js/backup.js` : nom de fichier fixe `appmuscu-sauvegarde.json`, images intégrées retirées (lien du catalogue ou rien), `validateBackup` commun fichier / GitHub.
+- Réglages : section « Synchro GitHub » (connecter, synchroniser, restaurer, déconnecter). À la connexion : GitHub vide → envoi ; téléphone vide → restauration ; les deux pleins → choix demandé.
+- Sauvegarde nettoyée privée : `save/appmuscu-sauvegarde-2026-11-15-sans-images.json` (18 Ko, `save/` ignoré par git).
+- Testé : 10 tests `tests/sync.test.mjs` + 15 `stats`, `node --check` ; navigateur intégré avec faux GitHub : dépôt public refusé, mauvais jeton, mauvais format, connexion sur téléphone vide (3 séances restaurées), envoi, conflit de sha, fichier envoyé sans jeton. Non testé : vrai GitHub, iPhone, envoi en arrière-plan sur iOS.
+- Prochaine étape : Johan crée le dépôt privé et le jeton, publication v2.2.0, réinstallation de l'icône depuis Safari normal, connexion.
+
 ## Backlog
 Bugs, améliorations et idées : voir `BACKLOG.md` (tenu à jour à la place de ce fichier).
