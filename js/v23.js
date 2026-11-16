@@ -98,10 +98,16 @@ export const moodLabel = (id) => MOODS.find((m) => m.id === id)?.label || '';
  * Suggestion selon le ressenti. Sans ressenti (séances d'avant la v2.3) ou « Normal » : règle habituelle.
  * « En forme » : hausse proposée même si la dernière séance n'était pas complète.
  * « Fatigué », « Mauvaise nuit », « Douleur » : meilleure série de la dernière fois, sans hausse.
+ * v2.3.1 : une série ressentie « À bloc » (feel 4) la dernière fois l'emporte : charge légèrement baissée
+ * (un cran de moins, mêmes reps ; au poids du corps, une rep de moins). down = true.
  */
 export function suggestForMood(last, plannedSets, mood, step = 2.5) {
   const base = suggestNext(last, plannedSets, step);
   if (!base) return null;
+  if (last.sets.some((s) => s.feel === 4)) {
+    const t = last.top;
+    return t.w === 0 ? { w: 0, r: Math.max(1, t.r - 1), up: false, down: true } : { w: Math.max(0, round1(t.w - step)), r: t.r, up: false, down: true };
+  }
   if (mood === 'top' && !base.up) {
     const t = last.top;
     return t.w === 0 ? { w: 0, r: t.r + 1, up: true } : { w: round1(t.w + step), r: t.r, up: true };

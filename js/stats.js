@@ -23,11 +23,14 @@ export function doneSets(session, exerciseId, side) {
 }
 
 /**
- * Filtre de côté (mode unilatéral, v2.3) : side = 'L' ou 'R', ou absent pour tout garder.
- * Une série sans côté (bilatérale, données d'avant la v2.3) sert de référence aux deux côtés.
+ * Filtre de côté (mode unilatéral) : side = 'L' ou 'R' pour un côté, 'B' pour les seules séries bilatérales
+ * (sans côté), absent pour tout garder (volume, courbes). v2.3.1 : historiques bilatéral et unilatéral séparés,
+ * une charge à deux bras ne sert plus de référence à un seul bras (et inversement).
  */
 export function onSide(set, side) {
-  return !side || !set.side || set.side === side;
+  if (!side) return true;
+  if (side === 'B') return !set.side;
+  return set.side === side;
 }
 
 /** Nombre de séries affiché : en unilatéral, une paire gauche + droite compte pour une série. */
@@ -60,6 +63,20 @@ export function removeItemAt(items, k) {
   const gone = out.splice(k, 1)[0];
   if (k > 0 && out[k - 1]?.ss && !gone.ss) out[k - 1].ss = false;
   if (out.length) out[out.length - 1].ss = false;
+  return out;
+}
+
+/**
+ * Échange l'exercice k avec son voisin (dir = -1 vers le haut, +1 vers le bas), en copie.
+ * Les deux exercices déplacés et le précédent sortent de leur superset, pour ne jamais créer un lien non voulu.
+ */
+export function moveItem(items, k, dir) {
+  const out = items.map((x) => ({ ...x }));
+  const j = k + dir;
+  if (k < 0 || k >= out.length || j < 0 || j >= out.length) return out;
+  [out[k], out[j]] = [out[j], out[k]];
+  const a = Math.min(k, j);
+  for (const i of [a - 1, a, a + 1]) if (out[i]) out[i].ss = false;
   return out;
 }
 
@@ -139,11 +156,10 @@ export function detectPR(previous, set) {
 
 /**
  * Historique de référence pour un exercice : séances terminées + séries déjà validées de la séance en cours.
- * Si la série a un côté (unilatéral), seules les séries de ce côté et les séries bilatérales comptent :
- * les records sont suivis par côté.
+ * Avec une série de référence : seules les séries du même côté comptent (bilatéral avec bilatéral,
+ * gauche avec gauche, droite avec droite). Sans série : tout l'historique, ou le filtre `side` donné.
  */
-export function previousSetsFor(sessions, current, exerciseId, exceptSet) {
-  const side = exceptSet?.side;
+export function previousSetsFor(sessions, current, exerciseId, exceptSet, side = exceptSet ? (exceptSet.side || 'B') : undefined) {
   const sets = [];
   for (const s of sessions) if (s.end && s.id !== current?.id) sets.push(...doneSets(s, exerciseId, side));
   if (current) for (const s of doneSets(current, exerciseId, side)) if (s !== exceptSet) sets.push(s);
@@ -157,7 +173,7 @@ export function lastTime(sessions, exerciseId, exceptSessionId, side) {
     const sets = doneSets(s, exerciseId, side);
     if (sets.length) {
       const top = sets.reduce((a, b) => (b.w > a.w || (b.w === a.w && b.r > a.r) ? b : a));
-      return { date: s.start, sets: sets.map(({ w, r }) => ({ w, r })), top: { w: top.w, r: top.r } };
+      return { date: s.start, sets: sets.map(({ w, r, feel }) => (feel ? { w, r, feel } : { w, r })), top: { w: top.w, r: top.r } };
     }
   }
   return null;

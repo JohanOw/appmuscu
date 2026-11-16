@@ -36,6 +36,12 @@ test('suggestion selon le ressenti', () => {
   assert.deepEqual(suggestForMood(full, 2, 'normal'), { w: 52.5, r: 8, up: true });
   for (const m of ['tired', 'sleep', 'pain']) assert.deepEqual(suggestForMood(full, 2, m), { w: 50, r: 8, up: false });
   assert.equal(suggestForMood(null, 2, 'top'), null);
+  // « À bloc » la dernière fois : un cran de moins, mêmes reps, quel que soit l'état du jour.
+  const hard = { sets: [{ w: 50, r: 8 }, { w: 50, r: 6, feel: 4 }], top: { w: 50, r: 8 } };
+  assert.deepEqual(suggestForMood(hard, 2, 'normal'), { w: 47.5, r: 8, up: false, down: true });
+  assert.deepEqual(suggestForMood(hard, 2, 'top'), { w: 47.5, r: 8, up: false, down: true });
+  const hardBw = { sets: [{ w: 0, r: 10, feel: 4 }], top: { w: 0, r: 10 } };
+  assert.deepEqual(suggestForMood(hardBw, 1, 'normal'), { w: 0, r: 9, up: false, down: true });
 });
 
 test('unilatéral : équilibre et records par côté', () => {
@@ -53,8 +59,14 @@ test('unilatéral : équilibre et records par côté', () => {
   const st = cur.items[0].sets[0];
   // Droite seule : 22,5 bat 20 (le gauche à 30 ne compte pas).
   assert.deepEqual(detectPR(bestOf(previousSetsFor([s1], cur, 'dc', st)), st), ['charge', '1rm']);
-  // Avec l'ancienne série bilatérale à 40 kg : pas de record.
-  assert.deepEqual(detectPR(bestOf(previousSetsFor(ss, cur, 'dc', st)), st), []);
+  // v2.3.1 : l'ancienne série bilatérale à 40 kg ne compte plus pour un seul bras : record quand même.
+  assert.deepEqual(detectPR(bestOf(previousSetsFor(ss, cur, 'dc', st)), st), ['charge', '1rm']);
+  // Historiques séparés : un côté ignore le bilatéral, le bilatéral ('B') ignore les côtés.
+  assert.equal(lastTime([old], 'dc', null, 'L'), null);
+  assert.deepEqual(lastTime(ss, 'dc', null, 'B').top, { w: 40, r: 10 });
+  assert.equal(lastTime([s1], 'dc', null, 'B'), null);
+  const bi = { w: 45, r: 10 };
+  assert.deepEqual(detectPR(bestOf(previousSetsFor(ss, { id: 'c', items: [] }, 'dc', bi)), bi), ['charge', '1rm']);
   // Une paire gauche + droite compte pour une série, le volume compte les deux côtés.
   const stt = sessionStats(s1);
   assert.equal(stt.setCount, 1);
@@ -207,6 +219,16 @@ test('removeItemAt : retrait en séance, supersets cohérents, entrée non modif
   // Dernier retiré : le nouveau dernier n'est plus lié.
   assert.deepEqual(removeItemAt(items, 4).map((x) => [x.exerciseId, !!x.ss]), [['a', true], ['b', false], ['c', true], ['d', false]]);
   assert.equal(items.length, 5);
+  assert.equal(items[0].ss, true);
+});
+
+test('moveItem : échange avec le voisin, supersets touchés défaits, entrée non modifiée', async () => {
+  const { moveItem } = await import('../js/stats.js');
+  const items = [{ exerciseId: 'a', ss: true }, { exerciseId: 'b', ss: false }, { exerciseId: 'c', ss: true }, { exerciseId: 'd' }];
+  assert.deepEqual(moveItem(items, 2, -1).map((x) => [x.exerciseId, !!x.ss]), [['a', false], ['c', false], ['b', false], ['d', false]]);
+  assert.deepEqual(moveItem(items, 0, 1).map((x) => x.exerciseId), ['b', 'a', 'c', 'd']);
+  assert.deepEqual(moveItem(items, 0, -1).map((x) => x.exerciseId), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(moveItem(items, 3, 1).map((x) => x.exerciseId), ['a', 'b', 'c', 'd']);
   assert.equal(items[0].ss, true);
 });
 

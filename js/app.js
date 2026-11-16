@@ -3,16 +3,16 @@ import * as db from './db.js';
 import { artKey, artSrc, decorOf, fitOf, glowLayer, muscleMap } from './exart.js';
 import { planHipThrust, missingDefaults, HT_FLAG, HT_BACKUP, translateCues, purgeFixedBugs, planPairs, PAIR_FLAG, planMuscles, MUSCLES_FLAG } from './migrate.js';
 import { DEFAULT_EXERCISES, DEFAULT_WORKOUTS, DEFAULT_REST_SEC, NEW_DEFAULTS_V23 } from './defaults.js';
-import { epley, countSets, bestOf, detectPR, previousSetsFor, lastTime, sessionStats, exerciseSeries, nextWorkout, parseNum, formatDuration, fmtKg, round1, suggestNext, trainedDays, warmupWeight, supersetGroup, supersetLabels, removeItemAt, weekStreak, weekStart, setPairIds, isPair, loadFactor } from './stats.js';
+import { epley, countSets, bestOf, detectPR, previousSetsFor, lastTime, sessionStats, exerciseSeries, nextWorkout, parseNum, formatDuration, fmtKg, round1, suggestNext, trainedDays, warmupWeight, supersetGroup, supersetLabels, removeItemAt, moveItem, weekStreak, weekStart, setPairIds, isPair, loadFactor } from './stats.js';
 import { sprite, mascotPop, motivationPop, showSplash, showFinale, sessionKind, FLAME } from './mascot.js';
 import { DEFAULT_CUES } from './cues.js';
-import { RestTimer, unlockAudio, beepEnd, beepRecord, keepScreenOn, wakeLockSupported, screenLocked, lastWakeError, fmtClock } from './timer.js';
+import { RestTimer, unlockAudio, beepEnd, beepRecord, beepExercise, beepFinish, REST_SOUNDS, setSoundPrefs, previewRest, keepScreenOn, wakeLockSupported, screenLocked, lastWakeError, fmtClock } from './timer.js';
 import { buildBackupFile, shareOrDownload, readBackup, restoreBackup } from './backup.js';
 import * as sync from './sync.js';
 import { lineChart } from './charts.js';
 import { quoteOfDay, weekProgress, MOODS, moodLabel, suggestForMood, balancePct, nextBalanceTier, featured, sparkPoints, restTip, weightEquivalent, fmtT, GROUPS, muscleWeek, levelOf, achievements, achievementTotals, newlyUnlocked, prDetail } from './v23.js';
 
-export const APP_VERSION = '2.3.0';
+export const APP_VERSION = '2.3.1';
 
 /* ---------- État en mémoire ---------- */
 const state = {
@@ -159,7 +159,7 @@ function splashLine() {
 }
 
 async function reload() {
-  const [ex, wk, ss, rest, active, warm, splash, timerAdj, body, goal] = await Promise.all([db.getAll('exercises'), db.getAll('workouts'), db.getAll('sessions'), db.kvGet('restSec'), db.kvGet('active'), db.kvGet('warm'), db.kvGet('splash'), db.kvGet('timerAdj'), db.kvGet('body'), db.kvGet('goal')]);
+  const [ex, wk, ss, rest, active, warm, splash, timerAdj, body, goal, sound] = await Promise.all([db.getAll('exercises'), db.getAll('workouts'), db.getAll('sessions'), db.kvGet('restSec'), db.kvGet('active'), db.kvGet('warm'), db.kvGet('splash'), db.kvGet('timerAdj'), db.kvGet('body'), db.kvGet('goal'), db.kvGet('sound')]);
   state.exercises = new Map(ex.map((e) => [e.id, e]));
   refreshPairs();
   state.workouts = wk;
@@ -170,6 +170,8 @@ async function reload() {
   state.splash = splash !== false;
   state.timerAdj = timerAdj === true; // boutons −15 s / +15 s masqués par défaut
   state.body = Array.isArray(body) ? body : [];
+  state.sound = { rest: 'classic', fx: true, ...(sound || {}) };
+  setSoundPrefs(state.sound);
   state.goal = Number.isInteger(goal) && goal >= 1 && goal <= 7 ? goal : 3; // objectif de séances par semaine
 }
 
@@ -456,7 +458,7 @@ async function startSession(workoutId, mood) {
 
 /** Exercice de séance : séries préremplies depuis la dernière fois, échauffement ajouté si une charge est connue. */
 function buildItem(exerciseId, n, ss = false) {
-  // Unilatéral (hors superset) : séries gauche puis droite, préremplies par côté, sans échauffement automatique.
+  // Unilatéral (hors superset) : séries gauche puis droite, préremplies par côté, échauffement commun en tête.
   if (state.exercises.get(exerciseId)?.uni && !ss) {
     const lts = { L: lastTime(state.sessions, exerciseId, null, 'L'), R: lastTime(state.sessions, exerciseId, null, 'R') };
     // Côté sauté à la dernière séance (blessure) : on ne reprend pas une charge plus ancienne, la case reste vide.
@@ -468,9 +470,11 @@ function buildItem(exerciseId, n, ss = false) {
       const ref = lt?.sets[k] || lt?.sets[lt.sets.length - 1];
       sets.push({ w: ref ? ref.w : '', r: ref ? ref.r : '', done: false, side });
     }
-    return { exerciseId, name: exName(exerciseId), restSec: exRest(exerciseId), planned: n, ss: false, uni: true, sets };
+    const item = { exerciseId, name: exName(exerciseId), restSec: exRest(exerciseId), planned: n, ss: false, uni: true, sets };
+    if (state.warm.on) addWarmup(item);
+    return item;
   }
-  const lt = lastTime(state.sessions, exerciseId);
+  const lt = lastTime(state.sessions, exerciseId, null, 'B');
   const sets = Array.from({ length: n }, (_, k) => {
     const ref = lt?.sets[k] || lt?.sets[lt.sets.length - 1];
     return { w: ref ? ref.w : '', r: ref ? ref.r : '', done: false };
@@ -510,10 +514,21 @@ function pickSessionExercise() {
   m.innerHTML = `<div class="modal-box"><p><strong>Exercices de la séance</strong></p><ul class="pick-list ex-pick">${s.items.map((x, k) => {
     const work = x.sets.filter((z) => !z.warm);
     const done = work.filter((z) => z.done).length;
-    return `<li data-i="${k}" class="${k === cur ? 'on' : ''} ${done && done >= work.length ? 'ok' : ''}"><span class="num">${k + 1}</span><span class="grow">${esc(x.name)}${labs[k] ? ` <span class="sstag">${labs[k]}</span>` : ''}</span><span class="cnt">${done}/${work.length}</span>${s.items.length > 1 ? `<button class="btn icon sm danger-text" data-rm="${k}" aria-label="Retirer ${esc(x.name)} de cette séance">✕</button>` : ''}</li>`;
-  }).join('')}</ul><button class="btn big" data-add>+ Ajouter un exercice</button><p class="muted small">Ajout et retrait valent pour cette séance uniquement : la séance type ne change pas.</p><div class="modal-actions"><button class="btn" data-x>Fermer</button></div></div>`;
+    return `<li data-i="${k}" class="${k === cur ? 'on' : ''} ${done && done >= work.length ? 'ok' : ''}"><span class="num">${k + 1}</span><span class="grow">${esc(x.name)}${labs[k] ? ` <span class="sstag">${labs[k]}</span>` : ''}</span><span class="cnt">${done}/${work.length}</span>${s.items.length > 1 ? `<button class="btn icon sm" data-mv="${k}" data-d="-1" ${k === 0 ? 'disabled' : ''} aria-label="Monter ${esc(x.name)}">↑</button><button class="btn icon sm" data-mv="${k}" data-d="1" ${k === s.items.length - 1 ? 'disabled' : ''} aria-label="Descendre ${esc(x.name)}">↓</button>` : ''}${s.items.length > 1 ? `<button class="btn icon sm danger-text" data-rm="${k}" aria-label="Retirer ${esc(x.name)} de cette séance">✕</button>` : ''}</li>`;
+  }).join('')}</ul><button class="btn big" data-add>+ Ajouter un exercice</button><p class="muted small">Ajout, retrait et ordre valent pour cette séance uniquement : la séance type ne change pas.</p><div class="modal-actions"><button class="btn" data-x>Fermer</button></div></div>`;
   m.classList.add('show');
   m.onclick = async (e) => {
+    const mv = e.target.closest('[data-mv]');
+    if (mv) {
+      const k = +mv.dataset.mv, j = k + +mv.dataset.d;
+      if (j < 0 || j >= s.items.length) return;
+      s.items = moveItem(s.items, k, +mv.dataset.d);
+      const ex = state.ui.exIndex;
+      state.ui.exIndex = ex === k ? j : ex === j ? k : ex;
+      await saveActive(true);
+      pickSessionExercise();
+      return;
+    }
     const rm = e.target.closest('[data-rm]');
     if (rm) { m.classList.remove('show'); m.onclick = null; await removeSessionExercise(+rm.dataset.rm); return; }
     if (e.target.closest('[data-add]')) { m.classList.remove('show'); m.onclick = null; await addSessionExercise(); return; }
@@ -591,8 +606,8 @@ function viewSession() {
   const it = s.items[i];
   if (it.uni) { viewUni(s, i, group); return; }
   const ex = state.exercises.get(it.exerciseId);
-  const lt = lastTime(state.sessions, it.exerciseId, s.id);
-  const best = bestOf(previousSetsFor(state.sessions, null, it.exerciseId));
+  const lt = lastTime(state.sessions, it.exerciseId, s.id, 'B');
+  const best = bestOf(previousSetsFor(state.sessions, null, it.exerciseId, null, 'B'));
   const sug = suggestForMood(lt, it.planned || it.sets.length, s.mood);
   const rest = it.restSec || s.restSec || state.restSec;
   const work = it.sets.filter((z) => !z.warm);
@@ -626,7 +641,7 @@ function viewSession() {
       <div class="exo-head"><h2>${esc(it.name)}</h2><button class="btn sm ghost" data-act="swap">⇄ Remplacer</button></div>
       <div class="rest-line"><span class="grow rest-lbl"><span aria-hidden="true">⏱</span> Repos pour cet exercice</span>${restPicker(rest, 'rest')}</div>
       <p class="last">${lt ? `La dernière fois : <strong>${fmtKg(lt.top.w)} kg × ${lt.top.r}</strong> <span class="muted small">(${fmtDay(lt.date)} · ${lt.sets.map((z) => `${fmtKg(z.w)}×${z.r}`).join(', ')})</span>` : '<span class="muted">Première fois sur cet exercice</span>'}</p>
-      ${sug && anyUndone ? `<button class="btn suggest" data-act="applysug"><span>${sug.up ? '↗' : '='} Aujourd'hui : ${sugTxt}</span><span class="small">Appliquer</span></button>` : ''}
+      ${sug && anyUndone ? `<button class="btn suggest" data-act="applysug"><span>${sug.up ? '↗' : sug.down ? '↘' : '='} Aujourd'hui : ${sugTxt}</span><span class="small">Appliquer</span></button>` : ''}
       ${best.count ? `<p class="muted small">Record : ${fmtKg(best.maxW)} kg · 1RM estimé ${fmtKg(round1(best.maxE1rm))} kg</p>` : ''}
       ${cue && !hasArt(ex) ? `<p class="cue-neon">${cueHtml(cue)}</p>` : ''}<p>${cueBtn(it.exerciseId, !!cue)}</p>
       <div class="sets">${rows}</div>
@@ -712,7 +727,7 @@ function viewSuperset(s, group) {
   }).join('');
   const heads = its.map((it, m) => {
     const ex = state.exercises.get(it.exerciseId);
-    const lt = lastTime(state.sessions, it.exerciseId, s.id);
+    const lt = lastTime(state.sessions, it.exerciseId, s.id, 'B');
     return `<div class="ss-head"><button class="imgbtn" data-act="sszoom" data-m="${m}">${exVis(ex, 'ss-img', 'sm')}</button>
       <div><span class="sstag">${labs[group[m]]}</span> <strong>${esc(it.name)}</strong></div>
       <span class="small muted">${lt ? `Dernière fois : ${fmtKg(lt.top.w)} × ${lt.top.r}` : 'Première fois'}</span>
@@ -787,7 +802,6 @@ function viewUni(s, i, group) {
   const sugTxt = sug ? (sug.w ? `${fmtKg(sug.w)} kg × ${sug.r}` : `${sug.r} reps`) : '';
   const rest = it.restSec || s.restSec || state.restSec;
   const n = s.items.length;
-  const mins = () => `${Math.floor((Date.now() - s.start) / 60000)} min`;
   const cell = (k, p, side) => {
     if (k == null) return '<div class="v-cell fut">–</div>';
     const st = it.sets[k];
@@ -801,8 +815,21 @@ function viewUni(s, i, group) {
     const done = pairDone(pr);
     const circle = done ? `<button class="v-cir done" data-act="uundo" data-p="${p}" aria-label="Annuler la série ${p + 1}">${SVG_CHECK}</button>`
       : `<span class="v-cir ${p === cur ? 'cur' : ''}">${p + 1}</span>`;
-    return `<div class="v-grow ${p === cur ? 'cur' : ''}">${circle}${cell(pr[0], p, 'L')}${cell(pr[1], p, 'R')}</div>`;
+    const a = it.sets[pr[0] ?? pr[1]];
+    const sub = subLine({ key: `u${i}-${p}`, done, feel: a.feel, note: a.note, noun: 'Série', fem: true,
+      feelAttrs: `data-act="ufeel" data-p="${p}"`, noteAttrs: `data-change="unote" data-p="${p}" aria-label="Note série ${p + 1}"`,
+      okAttrs: 'data-act="subok"', editAttrs: `data-act="subedit" data-key="u${i}-${p}"` });
+    return `<div class="set-wrap"><div class="v-grow ${p === cur ? 'cur' : ''}">${circle}${cell(pr[0], p, 'L')}${cell(pr[1], p, 'R')}</div>${sub}</div>`;
   }).join('');
+  // Échauffement (un seul, pour les deux côtés) : hors records et hors volume.
+  const wk = it.sets.findIndex((z) => z.warm);
+  const ws = wk < 0 ? null : it.sets[wk];
+  const warmRow = !ws ? '' : `<div class="set-wrap warm"><div class="v-grow">
+      <span class="v-cir">Éch.</span>
+      ${ws.done ? `<div class="v-cell">${fmtKg(ws.w)} × ${ws.r}</div>` : `<div class="v-in"><input type="text" inputmode="decimal" value="${fmtW(ws.w)}" data-input="setval" data-k="${wk}" data-f="w" aria-label="Poids échauffement" placeholder="kg"><span aria-hidden="true">×</span><input type="text" inputmode="numeric" value="${esc(ws.r)}" data-input="setval" data-k="${wk}" data-f="r" aria-label="Répétitions échauffement" placeholder="reps"></div>`}
+      <div class="v-warm-b">${ws.done ? `<button class="btn icon undo" data-act="undo" data-k="${wk}" aria-label="Annuler l'échauffement">↺</button>` : `<button class="btn icon ok" data-act="validate" data-k="${wk}" aria-label="Valider l'échauffement">✓</button>`}</div></div>
+      <div class="set-sub warm-sub"><span class="small muted">Échauffement léger, les deux côtés : hors records et hors volume</span>${ws.done ? '' : '<button class="btn sm ghost" data-act="delwarm">Retirer</button>'}</div></div>`;
+  const anyDone = it.sets.some((z) => z.done && !z.warm);
   // Côté absent de la séance la plus récente : « non fait » plutôt qu'une charge plus ancienne.
   const lastDate = Math.max(ltL?.date || 0, ltR?.date || 0);
   const lastLine = (lt, l) => (!lt ? '' : lt.date < lastDate ? `<div><b>${l}</b> <span class="muted">non fait</span></div>` : `<div><b>${l}</b> ${fmtKg(lt.top.w)} kg × ${lt.top.r}</div>`);
@@ -817,36 +844,43 @@ function viewUni(s, i, group) {
   const nt = nextBalanceTier(bal);
   const lastPair = pairs[pairs.length - 1];
   const nav = navHandlers(s, group);
-  render(`<header class="v-stop">
-      <a class="v-back" href="#/" aria-label="Retour à l'accueil">${SVG_BACK}</a>
-      <button class="v-mid" data-act="pickex">${esc(s.workoutName)} · exercice ${i + 1} / ${n} · <span id="elapsedMin">${mins()}</span></button>
-      <button class="v-finish" data-act="finish">Fin de séance</button></header>
+  const pDone = pairs.filter(pairDone).length;
+  render(`${sessionTop(s, group).replace('<span class="small muted"></span>', `<span class="small muted">${pDone}/${pairs.length} séries</span>`)}
     <h1 class="v-h1">${esc(it.name)}</h1>
     <div class="v-chips"><span class="v-chip uni">Unilatéral</span>${s.mood ? `<span class="v-chip">${esc(moodLabel(s.mood))}</span>` : ''}</div>
     <button class="imgbtn v-imgbtn" data-act="zoom">${exVis(ex, 'uni-img')}</button>
+    <div class="rest-line v-rest"><span class="grow rest-lbl"><span aria-hidden="true">⏱</span> Repos pour cet exercice</span>${restPicker(rest, 'rest')}</div>
     <p class="v-cuebtn">${cueBtn(it.exerciseId, !!exCue(ex))}</p>
-    <section class="card v-last">${ltL || ltR ? `<div class="v-eyebrow">La dernière fois</div>${lastLine(ltL, 'G')}${lastLine(ltR, 'D')}` : '<div class="v-sub">Première fois en unilatéral sur cet exercice.</div>'}</section>
+    <section class="card v-last">${ltL || ltR ? `<div class="v-eyebrow">La dernière fois</div>${lastLine(ltL, 'G')}${lastLine(ltR, 'D')}` : '<div class="v-sub">Première fois en unilatéral sur cet exercice.</div>'}
+      <p class="v-info"><span class="v-i" aria-hidden="true">i</span><span>Gauche : suggestion de progression. Droite : charge libre, pas de suggestion (rééducation).</span></p>
+      ${sug && cur >= 0 ? `<button class="btn suggest" data-act="applysug"><span>${sug.up ? '↗' : sug.down ? '↘' : '='} Gauche aujourd'hui : ${sugTxt}</span><span class="small">Appliquer</span></button>` : ''}
+    </section>
     <section class="card v-uni">
       <div class="v-grid-h"><span>Série</span><span>Gauche</span><span>Droite</span></div>
-      ${rows}
-      <p class="v-info"><span class="v-i" aria-hidden="true">i</span><span>Gauche : suggestion de progression. Droite : charge libre, pas de suggestion (rééducation).</span></p>
-      ${sug && cur >= 0 ? `<button class="btn suggest" data-act="applysug"><span>${sug.up ? '↗' : '='} Gauche aujourd'hui : ${sugTxt}</span><span class="small">Appliquer</span></button>` : ''}
+      ${warmRow}${rows}
       ${cur >= 0 ? `<button class="v-grad v-big" data-act="upair">Valider la série ${cur + 1}</button>` : '<p class="v-sub center">Toutes les séries sont faites.</p>'}
       <div class="row gap"><button class="btn" data-act="uadd">+ Série</button>
+        ${!ws && !anyDone ? '<button class="btn ghost" data-act="addwarm">+ Échauffement</button>' : ''}
         ${pairs.length > 1 && lastPair && !pairDone(lastPair) && lastPair.every((k) => k == null || !it.sets[k].done) ? '<button class="btn ghost" data-act="udel">− Série</button>' : ''}
         <span class="grow"></span><button class="btn sm ghost" data-act="swap">⇄ Remplacer</button></div>
-      <div class="rest-line"><span class="grow rest-lbl"><span aria-hidden="true">⏱</span> Repos pour cet exercice</span>${restPicker(rest, 'rest')}</div>
     </section>
     ${bal != null ? `<section class="card v-bal"><div class="v-bal-h"><span class="grow">Équilibre droite / gauche</span><b>${bal} %</b></div>
       <div class="v-bar" role="img" aria-label="Côté droit à ${bal} % du côté gauche"><i style="width:${Math.min(100, bal)}%"></i></div>
       <div class="v-bal-f"><span class="grow">Calcul : 1RM estimé droite ÷ gauche (${balSrc})</span><span>${nt ? `Prochain palier : ${nt} %` : 'Équilibre atteint'}</span></div></section>`
       : skipSide ? `<section class="card v-bal"><div class="v-bal-h"><span class="grow">Équilibre droite / gauche</span><b>–</b></div>
       <div class="v-bal-f"><span class="grow">${skipSide} non faite aujourd'hui : pas de calcul d'équilibre.</span></div></section>` : ''}
-    <div class="row gap"><button class="btn" data-act="prevex" ${i === 0 ? 'disabled' : ''}>‹ Précédent</button><span class="grow"></span>
-      ${i < n - 1 ? '<button class="btn primary next" data-act="nextex">Exercice suivant →</button>' : ''}</div>`, {
+    ${i < n - 1 ? '<div class="row gap"><span class="grow"></span><button class="btn primary next" data-act="nextex">Exercice suivant →</button></div>' : ''}`, {
     ...nav,
     setval: (el) => { it.sets[+el.dataset.k][el.dataset.f] = el.value; saveActive(); },
     upair: () => validatePair(i, pairs[cur]),
+    validate: (el) => validateSet(i, +el.dataset.k),
+    undo: (el) => { const st = it.sets[+el.dataset.k]; st.done = false; delete st.pr; delete st.at; saveActive(); keepScroll(viewSession); },
+    addwarm: () => { if (addWarmup(it)) { saveActive(); keepScroll(viewSession); } else toast('Saisis d’abord la charge gauche de la 1re série : l’échauffement en est calculé.'); },
+    delwarm: () => { it.sets = it.sets.filter((z) => !z.warm); saveActive(); keepScroll(viewSession); },
+    subedit: (el) => { state.ui.editSub = el.dataset.key; keepScroll(viewSession); app.querySelector('.sub-edit input')?.focus(); },
+    subok: () => { app.querySelector('.sub-edit input')?.blur(); state.ui.editSub = null; keepScroll(viewSession); },
+    unote: (el) => { const v = el.value.trim(); for (const k of pairs[+el.dataset.p]) if (k != null) it.sets[k].note = v; saveActive(); },
+    ufeel: (el) => { const v = +el.dataset.v; const ks = pairs[+el.dataset.p].filter((k) => k != null); const on = it.sets[ks[0]].feel !== v; for (const k of ks) { if (on) it.sets[k].feel = v; else delete it.sets[k].feel; } saveActive(); keepScroll(viewSession); },
     uundo: (el) => { for (const k of pairs[+el.dataset.p]) if (k != null) { const st = it.sets[k]; st.done = false; delete st.pr; delete st.at; if (st.skip) { st.w = ''; st.r = ''; delete st.skip; } } saveActive(); keepScroll(viewSession); },
     uadd: () => {
       for (const side of ['L', 'R']) { const l = it.sets.filter((z) => !z.warm && (z.side || 'L') === side).pop(); const ok = l && !l.skip; it.sets.push({ w: ok ? l.w : '', r: ok ? l.r : '', done: false, side }); }
@@ -862,7 +896,7 @@ function viewUni(s, i, group) {
     swap: () => swapExercise(i),
     zoom: () => modal(`${exVis(ex, 'zoom-img')}<p class="muted small">${esc(ex?.name || '')}</p>${exCue(ex) ? `<p class="cue-neon">${cueHtml(exCue(ex))}</p>` : ''}`, [{ label: 'Fermer', value: true }]),
   });
-  clock = setInterval(() => { const e = document.getElementById('elapsedMin'); if (e) e.textContent = mins(); }, 15000);
+  startClock(s);
 }
 
 /** Valide une série unilatérale (gauche et droite), puis lance un seul repos. */
@@ -897,6 +931,7 @@ async function validatePair(i, ks) {
   if (location.hash === '#/session') keepScroll(viewSession);
   if (finished && i < s.items.length - 1) toast(`${it.name} terminé. Suivant : ${s.items[i + 1].name}`, 3500);
   if (prs.length) celebrate(`${it.name} (${prs[0].side === 'R' ? 'droite' : 'gauche'})`, prs[0]);
+  else if (finished) beepExercise();
 }
 
 /** Choix d'un exercice dans « Mes exercices » (fenêtre avec recherche). Renvoie l'id ou null. */
@@ -974,6 +1009,7 @@ async function validateSet(i, k) {
   if (location.hash === '#/session') keepScroll(viewSession);
   if (!it.sets.some((z) => !z.done) && i < s.items.length - 1) toast(`${it.name} terminé. Suivant : ${s.items[i + 1].name}`, 3500);
   if (st.pr.length) celebrate(it.name, st);
+  else if (lastWork && !st.warm) beepExercise();
 }
 
 /** Valide un tour de superset (une série de chaque exercice), puis lance un seul repos. */
@@ -998,6 +1034,7 @@ async function validateRound(cells) {
   const after = group[group.length - 1] + 1;
   if (finished && after < s.items.length) toast(`Superset terminé. Suivant : ${s.items[after].name}`, 3500);
   if (prs.length) celebrate(prs[0][0], prs[0][1]);
+  else if (finished && !warm) beepExercise();
 }
 
 function celebrate(name, st) {
@@ -1030,6 +1067,7 @@ async function finishSession() {
   state.sessions.push(done);
   await endActive();
   go(`#/recap/${done.id}`);
+  beepFinish();
   const st = sessionStats(done);
   showFinale({ workoutName: done.workoutName, complete: !remaining, core, stats: [[formatDuration(st.durationMs), 'durée'], [fmtKg(st.volume), 'kg'], [st.setCount, 'séries'], [st.prs.length, 'records']] });
 }
@@ -1118,7 +1156,7 @@ function nextSetLabel() {
       const w = it.sets.filter((z) => !z.warm);
       return `Ensuite : superset, tour ${w.indexOf(it.sets[k]) + 1} / ${w.length}`;
     }
-    if (it.uni) { const w = it.sets.filter((z) => !z.warm); return `Ensuite : ${it.name}, série ${Math.floor(w.indexOf(it.sets[k]) / 2) + 1} / ${Math.ceil(w.length / 2)}`; }
+    if (it.uni && !it.sets[k].warm) { const w = it.sets.filter((z) => !z.warm); return `Ensuite : ${it.name}, série ${Math.floor(w.indexOf(it.sets[k]) / 2) + 1} / ${Math.ceil(w.length / 2)}`; }
     if (it.sets[k].warm) return `Ensuite : ${it.name}, échauffement`;
     const work = it.sets.filter((z) => !z.warm);
     return `Ensuite : ${it.name}, série ${work.indexOf(it.sets[k]) + 1} / ${work.length}`;
@@ -1135,11 +1173,11 @@ function renderTimer() {
     timerEl.innerHTML = `<div class="t-full">
       <div class="t-label">Repos</div><div class="t-next"></div><div class="t-spr"></div>
       <div class="t-ring"><svg viewBox="0 0 280 280" aria-hidden="true"><circle class="track" cx="140" cy="140" r="124"/><circle class="prog" cx="140" cy="140" r="124" stroke-dasharray="${RING_C.toFixed(1)}"/></svg><div class="t-digits"></div></div>
+      <div class="t-feel"></div>
       <p class="t-tip"></p>
       <div class="t-btns t-adj"><button class="btn soft" data-t="minus">−15 s</button><button class="btn soft" data-t="plus">+15 s</button></div>
       <button class="btn primary t-nextex" data-t="nextex"></button>
       <div class="t-btns"><button class="btn cyan" data-t="skip">Passer</button><button class="btn outline" data-t="min">Réduire</button></div>
-      <div class="t-feel"></div>
       <button class="btn primary big t-go" data-t="go">C'est parti !</button></div>
       <button class="t-mini" data-t="max"><span>Repos</span> <b class="t-digits"></b></button>`;
   }
@@ -1158,7 +1196,8 @@ function renderTimer() {
   if (timer.running && timerEl.dataset.tk !== String(timer.startKey)) { timerEl.dataset.tk = timer.startKey; timerEl.querySelector('.t-tip').textContent = `💡 ${restTip(Math.round(timer.startKey / 1000))}`; }
   const anim = ended ? 'finrepos' : state.ui.restAnim || 'repos';
   const sp = timerEl.querySelector('.t-spr');
-  const size = ended ? 200 : 150;
+  // Taille du bonhomme bornée par la hauteur d'écran : sinon la colonne déborde et le haut du sprite est rogné.
+  const size = Math.round(Math.min(ended ? 200 : 150, innerHeight * (ended ? 0.24 : 0.15)));
   if (show && sp.dataset.a !== anim + size) { sp.dataset.a = anim + size; sp.innerHTML = sprite(anim, size); }
   // Ressenti de la série (ou du tour) qui vient d'être validé, pendant le repos.
   const ls = state.ui.lastSet;
@@ -1780,6 +1819,12 @@ async function viewSettings() {
   if (location.hash !== '#/settings') return; // l'utilisateur a changé d'écran entre-temps
   render(`<header class="top">${BACK_HOME}</header><h1 class="h1">Réglages</h1>
     <section class="card row"><span class="grow">Repos par défaut</span>${restPicker(state.restSec, 'rest')}</section>
+    <h3 class="sec">Sons</h3>
+    <section class="card">
+      <div class="row"><span class="grow">Fin du repos</span><select class="field" data-change="restsound" aria-label="Son de fin du repos">${Object.entries(REST_SOUNDS).map(([k, v]) => `<option value="${k}" ${k === state.sound.rest ? 'selected' : ''}>${v.name}</option>`).join('')}</select><button class="btn sm" data-act="listen" aria-label="Écouter le son de fin du repos">▶ Écouter</button></div>
+      <label class="row"><span class="grow">Sons de réussite</span><input type="checkbox" class="switch" data-change="fx" ${state.sound.fx ? 'checked' : ''}></label>
+      <p class="muted small">Exercice terminé, record et fin de séance. Coupés si l'iPhone est en mode silencieux.</p>
+    </section>
     <h3 class="sec">Échauffement</h3>
     <section class="card">
       <label class="row"><span class="grow">Ajouter une série d'échauffement</span><input type="checkbox" class="switch" data-change="warmon" ${wm.on ? 'checked' : ''}></label>
@@ -1824,6 +1869,9 @@ async function viewSettings() {
       <p class="muted">Maintien de l'écran : ${!wakeLockSupported() ? 'non pris en charge par ce navigateur' : screenLocked() ? 'actif' : `inactif${lastWakeError() ? ` (${esc(lastWakeError())})` : ''}`}.</p></section>`, {
     rest: async (el) => { state.restSec = readRest(el); await db.kvSet('restSec', state.restSec); toast('Repos par défaut enregistré'); },
     goal: async (el) => { state.goal = Math.min(7, Math.max(1, +el.value || 3)); await db.kvSet('goal', state.goal); toast(`Objectif : ${state.goal} séance${state.goal > 1 ? 's' : ''} par semaine`); },
+    restsound: async (el) => { state.sound.rest = el.value; setSoundPrefs(state.sound); await db.kvSet('sound', state.sound); previewRest(el.value); },
+    listen: () => previewRest(state.sound.rest),
+    fx: async (el) => { state.sound.fx = el.checked; setSoundPrefs(state.sound); await db.kvSet('sound', state.sound); toast(el.checked ? 'Sons de réussite activés' : 'Sons de réussite coupés'); },
     warmon: async (el) => { state.warm.on = el.checked; await db.kvSet('warm', state.warm); toast(el.checked ? 'Échauffement activé' : 'Échauffement désactivé'); },
     warmpct: async (el) => { state.warm.pct = +el.value; await db.kvSet('warm', state.warm); toast('Charge d\'échauffement enregistrée'); },
     warmreps: async (el) => { state.warm.reps = +el.value; await db.kvSet('warm', state.warm); toast('Répétitions d\'échauffement enregistrées'); },

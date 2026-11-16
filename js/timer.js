@@ -19,10 +19,10 @@ export function unlockAudio() {
   src.buffer = b; src.connect(ctx.destination); src.start(0);
 }
 
-function tone(freq, start, dur, vol = 0.35) {
+function tone(freq, start, dur, vol = 0.35, type = 'sine') {
   const o = ctx.createOscillator();
   const g = ctx.createGain();
-  o.type = 'sine'; o.frequency.value = freq;
+  o.type = type; o.frequency.value = freq;
   g.gain.setValueAtTime(0.0001, start);
   g.gain.exponentialRampToValueAtTime(vol, start + 0.02);
   g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
@@ -30,21 +30,63 @@ function tone(freq, start, dur, vol = 0.35) {
   o.start(start); o.stop(start + dur + 0.05);
 }
 
-export function beepEnd() {
-  if (!ctx) return;
+/** Cloche : fondamentale + harmoniques non entières, longue décroissance. */
+function bell(freq, start, vol = 0.3) {
+  [[1, 1, 1.6], [2.76, 0.35, 0.9], [5.4, 0.15, 0.5]].forEach(([m, v, d]) => tone(freq * m, start, d, vol * v));
+}
+
+/** Prépare un son : renvoie l'heure de départ, ou null si le son n'est pas débloqué. */
+function at() {
+  if (!ctx) return null;
   if (ctx.state !== 'running') ctx.resume().catch(() => {});
-  const t = ctx.currentTime + 0.05;
-  for (let i = 0; i < 3; i++) tone(880, t + i * 0.35, 0.25);
-  tone(1320, t + 1.05, 0.6);
+  return ctx.currentTime + 0.05;
+}
+
+/* Sons de fin de repos au choix (Réglages). Tous synthétisés : aucun fichier, marche hors ligne. */
+export const REST_SOUNDS = {
+  classic: { name: 'Classique', play: (t) => { for (let i = 0; i < 3; i++) tone(880, t + i * 0.35, 0.25); tone(1320, t + 1.05, 0.6); } },
+  arcade: { name: 'Arcade', play: (t) => { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, t + i * 0.1, 0.12, 0.18, 'square')); tone(1568, t + 0.65, 0.45, 0.16, 'square'); } },
+  cloche: { name: 'Cloche', play: (t) => { bell(660, t); bell(660, t + 0.6); bell(880, t + 1.2, 0.35); } },
+  coach: { name: 'Sifflet', play: (t) => { tone(2100, t, 0.18, 0.25, 'triangle'); tone(2100, t + 0.28, 0.5, 0.25, 'triangle'); } },
+};
+let restSound = 'classic';
+let fxOn = true;
+
+/** Réglages du son : son de fin de repos et sons de réussite (exercice, record, fin de séance). */
+export function setSoundPrefs({ rest, fx } = {}) {
+  if (rest && REST_SOUNDS[rest]) restSound = rest;
+  if (typeof fx === 'boolean') fxOn = fx;
+}
+
+/** Fait écouter un son de fin de repos (bouton « Écouter » des Réglages, donc après un geste). */
+export function previewRest(id) {
+  unlockAudio();
+  const t = at(); if (t !== null) (REST_SOUNDS[id] || REST_SOUNDS.classic).play(t);
+}
+
+export function beepEnd() {
+  const t = at(); if (t === null) return;
+  REST_SOUNDS[restSound].play(t);
   // Vibration : API absente de Safari iOS (à confirmer sur l'iPhone) ; utilisée si elle existe.
   if (navigator.vibrate) try { navigator.vibrate([300, 150, 300]); } catch { /* ignoré */ }
 }
 
 export function beepRecord() {
-  if (!ctx) return;
-  if (ctx.state !== 'running') ctx.resume().catch(() => {});
-  const t = ctx.currentTime + 0.05;
+  const t = fxOn ? at() : null; if (t === null) return;
   [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.12, 0.3, 0.3));
+}
+
+/** Exercice terminé : petit « ta-da » montant. */
+export function beepExercise() {
+  const t = fxOn ? at() : null; if (t === null) return;
+  tone(659, t, 0.14, 0.25, 'triangle'); tone(988, t + 0.13, 0.4, 0.28, 'triangle');
+}
+
+/** Fin de séance : courte fanfare et accord final. */
+export function beepFinish() {
+  const t = fxOn ? at() : null; if (t === null) return;
+  [392, 523, 659, 784].forEach((f, i) => tone(f, t + i * 0.14, 0.2, 0.25, 'triangle'));
+  [523, 659, 784, 1047].forEach((f) => tone(f, t + 0.62, 1.3, 0.14, 'triangle'));
 }
 
 /* ---------- Screen Wake Lock ---------- */

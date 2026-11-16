@@ -193,12 +193,14 @@ label.small { display: block; margin: 8px 0 4px; }
 @keyframes fadein { from { opacity: 0; } }
 #timer .t-full { display: none; }
 #timer.show .t-full {
-  display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%;
-  padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom); gap: 14px;
+  display: flex; flex-direction: column; justify-content: safe center; align-items: center; height: 100%;
+  padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom); gap: 10px; overflow-y: auto; scrollbar-width: none;
 }
 #timer .t-label { font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent2); text-align: center; }
 #timer .t-next { font-size: 16px; color: var(--muted); text-align: center; min-height: 1.4em; }
-#timer .t-ring { position: relative; width: min(82vw, 350px, 40vh); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; margin: 10px 0; }
+#timer .t-full > * { flex-shrink: 0; }
+#timer .t-full::-webkit-scrollbar { display: none; }
+#timer .t-ring { position: relative; width: min(78vw, 330px, 32vh); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; margin: 10px 0; }
 #timer .t-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 #timer .t-ring circle { fill: none; stroke-width: 14; }
 #timer .t-ring .track { stroke: rgba(255, 255, 255, .12); }
@@ -364,7 +366,7 @@ label.small { display: block; margin: 8px 0 4px; }
 /* Compagnon permanent, au-dessus de la barre d'onglets */
 
 /* Sprite dans le timer de repos */
-#timer .t-spr { display: flex; justify-content: center; align-items: flex-end; height: min(158px, 18vh); margin-top: 4px; overflow: hidden; }
+#timer .t-spr { display: flex; justify-content: center; align-items: flex-end; min-height: min(152px, 15.5vh); margin-top: 4px; }
 #timer .t-tip { max-width: 340px; margin: 2px 16px 6px; text-align: center; font-size: 14px; line-height: 1.35; color: var(--muted); min-height: 2.7em; }
 #timer.ended .t-tip { display: none; }
 
@@ -374,10 +376,11 @@ label.small { display: block; margin: 8px 0 4px; }
 .feel .btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 800; }
 #timer .t-feel { width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 #timer .t-feel .feel { width: 100%; }
+#timer .t-feel .feel .btn { min-height: 48px; font-size: 17px; }
 #timer .t-go { display: none; }
 #timer.ended .t-ring, #timer.ended .t-btns, #timer.ended .t-feel { display: none; }
 #timer.ended .t-label { font-size: 30px; letter-spacing: 1px; }
-#timer.ended .t-spr { height: 230px; }
+#timer.ended .t-spr { min-height: min(230px, 25vh); }
 #timer.ended .t-go { display: flex; justify-content: center; width: 100%; max-width: 360px; min-height: 64px; font-size: 24px; margin-top: 8px; }
 .ss-heads { display: grid; grid-template-columns: repeat(var(--m), minmax(0, 1fr)); gap: 10px; margin: 6px 0 10px; }
 .ss-head { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -665,3 +668,16 @@ label.small { display: block; margin: 8px 0 4px; }
 .hero .v-quote.in blockquote { font-size: 13px; line-height: 1.35; }
 .hero .v-quote.in figcaption { margin-top: 4px; font-size: 11px; }
 @media (max-width: 340px) { .hero .hero-row { flex-direction: column; } }
+
+/* v2.3.1 : unilatéral, repos en haut et échauffement commun */
+.v-rest { margin: 4px 0 10px; }
+.v-uni .set-wrap.warm .v-cir { font-size: 11px; }
+.v-warm-b { display: flex; }
+/* v2.3.1 : info et suggestion dans la carte « La dernière fois » (unilatéral). */
+.v-last .v-info, .v-last .btn.suggest { width: 100%; }
+.v-last .btn.suggest { margin-top: 6px; }
+/* Pas de barre de défilement visible (appli pour iPhone), et page figée pendant le repos plein écran. */
+html { scrollbar-width: none; }
+html::-webkit-scrollbar { display: none; }
+html:has(#timer.show:not(.mini)), body:has(#timer.show:not(.mini)) { overflow: hidden; }
+

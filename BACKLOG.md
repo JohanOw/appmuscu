@@ -36,6 +36,7 @@ Quand c'est fait, déplace la ligne dans « Fait » avec la version.
 - [ ] Recalcul complet des stats à chaque affichage (négligeable pour l'instant).
 
 ## ✅ Fait
+- v2.3.1 (16/11, non publiée) : correctifs du carnet. Historiques séparés gauche / droite / bilatéral (110 kg en bilatéral ne propose plus rien en unilatéral) ; écran unilatéral avec l'en-tête et le menu déroulant habituels, repos sous l'image ; note et ressenti par série en unilatéral ; échauffement en unilatéral (une ligne commune aux deux côtés) ; bonhomme non coupé et ressenti remonté sous le chrono, boutons plus grands ; « À bloc » à la dernière séance = charge légèrement baissée (un cran, mêmes reps) ; ordre des exercices modifiable en séance (↑ ↓ dans le menu, séance type inchangée). Info et suggestion « Gauche aujourd'hui » remontées dans la carte « La dernière fois » ; barre de défilement masquée et page figée pendant le repos ; sons synthétisés (exercice terminé, record, fin de séance, activables dans Réglages) et 4 sons de fin de repos au choix avec « Écouter ». Tests 39/39, navigateur vérifié en mode mobile.
 - v2.2.0 (15/11) : synchro GitHub privée (connexion, envoi auto à la sortie de l'appli et en fin de séance, restauration), sauvegarde sans images (18 Ko au lieu de plusieurs Mo), nom de fichier fixe. Confirmé sur l'iPhone le 15/11.
 - (15/11) « Undo typing » : réglage iOS « Secouer pour annuler », désactivé par Johan.
 - v2.1.1 : maintien de l'écran redemandé au toucher, état affiché dans Réglages. Confirmé sur l'iPhone (iOS 26.6.2) le 15/11.

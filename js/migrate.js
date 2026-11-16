@@ -103,6 +103,15 @@ export const FIXED_BUGS = [
   { t: 1794401708050, v: '2.3.0' }, // passer au prochain exercice pendant le dernier repos
   { t: 1794580497886, v: '2.3.0' }, // modifier la consigne pendant la séance
   { t: 1794404054729, v: '2.3.0' }, // renommer en YeahBuddy
+  { t: 1794834205031, v: '2.3.1' }, // ressenti remonté et pris en compte
+  { t: 1794834064380, v: '2.3.1' }, // repos sous l'image en unilatéral
+  { t: 1794834038276, v: '2.3.1' }, // menu déroulant des exercices en unilatéral
+  { t: 1794832967679, v: '2.3.1' }, // poids bilatéral non reporté sur l'unilatéral
+  { t: 1794832658559, v: '2.3.1' }, // bonhomme coupé en fin d'exercice
+  { t: 1794832341750, v: '2.3.1' }, // commentaire en unilatéral
+  { t: 1794832205174, v: '2.3.1' }, // changer l'ordre des exercices en séance
+  { t: 1794832084191, v: '2.3.1' }, // échauffement en unilatéral
+  { t: 1794832237667, v: '2.3.1' }, // barre de défilement pendant le repos
 ];
 
 /** Sépare le carnet en entrées gardées et entrées corrigées (copies, liste d'entrée non modifiée). */
