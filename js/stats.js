@@ -11,16 +11,27 @@ export const round1 = (n) => Math.round(n * 10) / 10;
 
 /**
  * Séries de travail validées d'une séance pour un exercice donné (ou toutes si exerciseId absent).
- * Les séries d'échauffement (warm) sont exclues : elles ne comptent ni dans le volume, ni dans les records.
+ * Les séries d'échauffement (warm) et les côtés laissés vides en unilatéral (skip) sont exclus : ni volume, ni records.
  */
-export function doneSets(session, exerciseId) {
+export function doneSets(session, exerciseId, side) {
   const out = [];
   for (const it of session.items || []) {
     if (exerciseId && it.exerciseId !== exerciseId) continue;
-    for (const s of it.sets) if (s.done && !s.warm) out.push(s);
+    for (const s of it.sets) if (s.done && !s.warm && !s.skip && onSide(s, side)) out.push(s);
   }
   return out;
 }
+
+/**
+ * Filtre de côté (mode unilatéral, v2.3) : side = 'L' ou 'R', ou absent pour tout garder.
+ * Une série sans côté (bilatérale, données d'avant la v2.3) sert de référence aux deux côtés.
+ */
+export function onSide(set, side) {
+  return !side || !set.side || set.side === side;
+}
+
+/** Nombre de séries affiché : en unilatéral, une paire gauche + droite compte pour une série. */
+export const countSets = (sets) => sets.filter((s) => s.side !== 'R').length;
 
 /** Charge d'échauffement : pct % de la charge de travail, arrondie au 2,5 kg inférieur (0 si pas de charge). */
 export function warmupWeight(workW, pct = 60) {
@@ -39,6 +50,19 @@ export function supersetGroup(items, i) {
   return Array.from({ length: b - a + 1 }, (_, k) => a + k);
 }
 
+/**
+ * Retire l'exercice k d'une liste de séance (copie). Garde les supersets cohérents :
+ * si le précédent était lié à celui retiré, il reste lié au suivant seulement si le retiré l'était aussi.
+ */
+export function removeItemAt(items, k) {
+  const out = items.map((x) => ({ ...x }));
+  if (k < 0 || k >= out.length) return out;
+  const gone = out.splice(k, 1)[0];
+  if (k > 0 && out[k - 1]?.ss && !gone.ss) out[k - 1].ss = false;
+  if (out.length) out[out.length - 1].ss = false;
+  return out;
+}
+
 /** Lettre du superset (A, B, C…) pour chaque exercice, ou '' s'il n'est pas en superset. */
 export function supersetLabels(items) {
   const out = items.map(() => '');
@@ -52,15 +76,36 @@ export function supersetLabels(items) {
   return out;
 }
 
+/*
+ * Exercices aux haltères (v2.3) : le poids saisi est celui d'UN haltère, le volume compte donc 2 × poids × reps.
+ * Exception : en mode unilatéral, chaque côté porte un seul haltère (facteur 1).
+ * La liste est fournie par l'appli au démarrage et à chaque modification d'exercice (setPairIds).
+ */
+let PAIR = new Set();
+export function setPairIds(ids) { PAIR = new Set(ids || []); }
+export const isPair = (exerciseId) => PAIR.has(exerciseId);
+export const loadFactor = (it) => (PAIR.has(it?.exerciseId) && !it?.uni ? 2 : 1);
+
+/** Volume (kg) des séries de travail validées d'une séance, pour un exercice ou pour toute la séance. */
+export function sessionVolume(session, exerciseId) {
+  let v = 0;
+  for (const it of session.items || []) {
+    if (exerciseId && it.exerciseId !== exerciseId) continue;
+    const f = loadFactor(it);
+    for (const s of it.sets) if (s.done && !s.warm && !s.skip) v += f * s.w * s.r;
+  }
+  return v;
+}
+
 export function sessionStats(session) {
   const sets = doneSets(session);
-  const volume = sets.reduce((a, s) => a + s.w * s.r, 0);
+  const volume = sessionVolume(session);
   const end = session.end || Date.now();
   const prs = [];
   for (const it of session.items || []) {
-    for (const s of it.sets) if (s.done && s.pr && s.pr.length) prs.push({ name: it.name, exerciseId: it.exerciseId, w: s.w, r: s.r, pr: s.pr });
+    for (const s of it.sets) if (s.done && s.pr && s.pr.length) prs.push({ name: it.name, exerciseId: it.exerciseId, w: s.w, r: s.r, pr: s.pr, side: s.side || null });
   }
-  return { durationMs: Math.max(0, end - session.start), volume: round1(volume), setCount: sets.length, prs };
+  return { durationMs: Math.max(0, end - session.start), volume: round1(volume), setCount: countSets(sets), prs };
 }
 
 /** Meilleures performances sur une liste de séries. */
@@ -92,19 +137,24 @@ export function detectPR(previous, set) {
   return types;
 }
 
-/** Historique de référence pour un exercice : séances terminées + séries déjà validées de la séance en cours. */
+/**
+ * Historique de référence pour un exercice : séances terminées + séries déjà validées de la séance en cours.
+ * Si la série a un côté (unilatéral), seules les séries de ce côté et les séries bilatérales comptent :
+ * les records sont suivis par côté.
+ */
 export function previousSetsFor(sessions, current, exerciseId, exceptSet) {
+  const side = exceptSet?.side;
   const sets = [];
-  for (const s of sessions) if (s.end && s.id !== current?.id) sets.push(...doneSets(s, exerciseId));
-  if (current) for (const s of doneSets(current, exerciseId)) if (s !== exceptSet) sets.push(s);
+  for (const s of sessions) if (s.end && s.id !== current?.id) sets.push(...doneSets(s, exerciseId, side));
+  if (current) for (const s of doneSets(current, exerciseId, side)) if (s !== exceptSet) sets.push(s);
   return sets;
 }
 
 /** Dernière séance terminée contenant cet exercice : { date, sets, top }. */
-export function lastTime(sessions, exerciseId, exceptSessionId) {
+export function lastTime(sessions, exerciseId, exceptSessionId, side) {
   const sorted = sessions.filter((s) => s.end && s.id !== exceptSessionId).sort((a, b) => b.start - a.start);
   for (const s of sorted) {
-    const sets = doneSets(s, exerciseId);
+    const sets = doneSets(s, exerciseId, side);
     if (sets.length) {
       const top = sets.reduce((a, b) => (b.w > a.w || (b.w === a.w && b.r > a.r) ? b : a));
       return { date: s.start, sets: sets.map(({ w, r }) => ({ w, r })), top: { w: top.w, r: top.r } };
@@ -122,7 +172,7 @@ export function exerciseSeries(sessions, exerciseId) {
       const sets = doneSets(s, exerciseId);
       if (!sets.length) return null;
       const b = bestOf(sets);
-      return { date: s.start, maxW: b.maxW, e1rm: round1(b.maxE1rm), volume: round1(sets.reduce((a, x) => a + x.w * x.r, 0)) };
+      return { date: s.start, maxW: b.maxW, e1rm: round1(b.maxE1rm), volume: round1(sessionVolume(s, exerciseId)) };
     })
     .filter(Boolean);
 }

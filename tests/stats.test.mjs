@@ -1,7 +1,7 @@
 // Tests des calculs. Lancer : node --test tests/stats.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { epley, bestOf, detectPR, lastTime, sessionStats, exerciseSeries, nextWorkout, parseNum, previousSetsFor, suggestNext, trainedDays, warmupWeight, supersetGroup, supersetLabels, weekStreak, weekStart } from '../js/stats.js';
+import { epley, doneSets, bestOf, detectPR, lastTime, sessionStats, exerciseSeries, nextWorkout, parseNum, previousSetsFor, suggestNext, trainedDays, warmupWeight, supersetGroup, supersetLabels, weekStreak, weekStart } from '../js/stats.js';
 
 const S = (id, start, sets, workoutId = 'push') => ({
   id, workoutId, start, end: start + 3600e3,
@@ -124,4 +124,28 @@ test('série de semaines', () => {
   assert.deepEqual(weekStreak([at(2026, 11, 3), at(2026, 10, 19)], now), { weeks: 1, thisWeek: true });
   // séance non terminée ignorée
   assert.deepEqual(weekStreak([{ start: at(2026, 11, 3).start }], now), { weeks: 0, thisWeek: false });
+});
+
+test('unilatéral : un côté laissé vide (skip) ne compte ni en volume ni en records', () => {
+  const s = { id: 's', start: 0, end: 1, items: [{ exerciseId: 'X', name: 'X', sets: [{ w: 50, r: 9, done: true, side: 'L' }, { w: 0, r: 0, done: true, side: 'R', skip: true }] }] };
+  assert.equal(doneSets(s).length, 1);
+  assert.equal(doneSets(s, 'X', 'R').length, 0);
+  assert.equal(sessionStats(s).volume, 450);
+  assert.equal(sessionStats(s).setCount, 1);
+});
+
+test('haltères : poids saisi par haltère, volume × 2 sauf en unilatéral', async () => {
+  const { setPairIds, sessionVolume } = await import('../js/stats.js');
+  const s = { id: 'h', start: 0, end: 1, items: [
+    { exerciseId: 'DB', name: 'DB', sets: [{ w: 25, r: 10, done: true }, { w: 10, r: 15, done: true, warm: true }] },
+    { exerciseId: 'DB', name: 'DB uni', uni: true, sets: [{ w: 20, r: 8, done: true, side: 'L' }] },
+    { exerciseId: 'BAR', name: 'BAR', sets: [{ w: 60, r: 5, done: true }] },
+  ] };
+  setPairIds(['DB']);
+  try {
+    assert.equal(sessionVolume(s, 'DB'), 2 * 25 * 10 + 20 * 8);
+    assert.equal(sessionStats(s).volume, 500 + 160 + 300);
+    assert.equal(exerciseSeries([s], 'DB')[0].maxW, 25); // le record reste le poids d'un haltère
+  } finally { setPairIds([]); }
+  assert.equal(sessionStats(s).volume, 250 + 160 + 300);
 });

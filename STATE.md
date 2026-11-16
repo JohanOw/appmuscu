@@ -305,3 +305,29 @@ Johan : voir le MVP en local (http://localhost:8080), puis mise en ligne GitHub 
 
 ## Backlog
 Bugs, améliorations et idées : voir `BACKLOG.md` (tenu à jour à la place de ce fichier).
+
+## V2.3 (2026-11-16) : codée et testée en local, NON commitée, NON en ligne
+- Maquette validée par Johan : https://claude.ai/artifact/9mnQfstBpARsrD2rTzzrU4 (copie locale : `bank/maquette-v2.3/project/*.dc.html` + `muscles.png`).
+- Périmètre : carte musculaire (onglet Progrès > Muscles), mensurations, succès (onglet Progrès > Succès), accueil (citation, objectif de la semaine, exercice phare), mode unilatéral, ressenti avant séance, récap (« Sauvegarder et quitter » retourne au menu, équivalent animal du volume, succès débloqué).
+- Carte musculaire : script `bank/mascotte/carte-musculaire-colorize.ps1` (= colorize3), images sources `bank/mascotte/sources/`, exemple validé `bank/mascotte/carte-musculaire-exemple.png`. Paliers : 0 série blanc, 1 à 4 cyan, 5 à 9 or (#ffce2d), 10 et + rose. Défaut connu : zone lombaire rendue blanche.
+- Règle de livraison décidée par Johan : code en LOCAL uniquement (dossier du projet), aucun commit, aucun push. GitHub Pages reste en v2.2.0. Johan teste en local puis donne son accord pour publier.
+- Compte rendu de la session : `RAPPORT-V2.3.md` à la racine.
+- État réel : tout est codé. Fichiers modifiés : `js/app.js`, `js/stats.js`, `css/app.css`, `sw.js` (VERSION appmuscu-v2.3.0). Nouveaux : `js/v23.js`, `tests/v23.test.mjs`, `img/muscles/` (5 images), `tools/muscle-map-*.{ps1,py}`. APP_VERSION 2.3.0.
+- Tests : `node --check` OK ; 35 tests node (stats, sync, v23) OK ; parcours navigateur 430×932 sur le port 8081 avec données de test (séance unilatérale + ressenti, récap, export intercepté et revalidé, carte musculaire, succès, mensuration, réglage objectif). Captures : `bank/captures-v2.3/`.
+- Bugs corrigés pendant les tests : fond de la feuille Ressenti qui bloquait les clics, `[hidden]` écrasé par `.btn`, décompte des séries unilatérales à la confirmation de fin.
+- Problèmes ouverts : unilatéral après superset, pas de zone Fessiers sur la carte, lignes unilatérales futures non modifiables. Non testé sur iPhone ni synchro GitHub réelle.
+- Ajouts du 2026-11-16 (même règle : local, non commité), détail dans `RAPPORT-V2.3.md` section 8 :
+  - Fusion Barbell_Hip_Thrust dans `custom_mw6hm706zjuhl` au démarrage (`js/migrate.js`, kv `mig-hipthrust` + copie `mig-hipthrust-backup`).
+  - 20 animations `img/mascotte/ex/*.webp` (décor 1 machines, décor 2 poids libres), correspondance id puis nom dans `js/exart.js`, alias pour 3 exercices perso. Outil `tools/white-prep.py` (fond blanc).
+  - Défauts Belt squat et Crunch à la machine (kv `defaults-v23`, sans doublon).
+  - `img/ex/*.jpg` supprimés (récupérables dans git), plus de téléchargement raw.githubusercontent ; sans animation : visuel neutre + carte musculaire. Images en base non effacées, juste masquées.
+  - Icônes 180/192/512 depuis `icone yeahbuddy.jfif` (`tools/icon-prep.py`), entrée maskable retirée du manifeste.
+  - Tests : 39/39 ; navigateur 430×932 port 8080 avec la sauvegarde importée (migration OK, 51 fichiers SW en 200, aucune erreur console). Captures 09 à 13.
+- Retours Johan du 2026-11-16 soir, traités (détail `RAPPORT-V2.3.md` section 9) : décor sunset + glow de l'accueil rétabli ; retours en bouton flèche ; boutons Supprimer refaits ; calendrier en carrés discrets ; succès expliqués au toucher ; ajouter / retirer un exercice dans la séance en cours (`removeItemAt` dans stats.js) ; 3 consignes EN traduites et purge auto du carnet (`translateCues`, `purgeFixedBugs`, `FIXED_BUGS` dans migrate.js ; copies kv `cues-en-backup` et `bugs-fixed`).
+  - Règle carnet : quand un bug est corrigé, ajouter son `t` dans `FIXED_BUGS` (js/migrate.js).
+  - Tests : 42/42 ; navigateur port 8080 vérifié par le DOM (pas de captures : volet trop étroit), aucune erreur console.
+  - Bugs du carnet encore ouverts : chrono plus gros, passer au suivant, modifier la consigne en séance, mode vidéo, renommer en YeahBuddy.
+- Retours du 2026-11-16 (suite), détail `RAPPORT-V2.3.md` section 10 : écran de repos sans « Fin de séance », chrono et bonhomme agrandis, conseil pendant le repos (`REST_TIPS`, `restTip` dans v23.js) ; bouton « Passer à » au dernier repos d'un exercice ; consigne modifiable en séance ; « Epley » retiré de l'interface ; exercice phare comparé au premier passage (`featured().since`) ; nom affiché YeahBuddy (identifiants internes inchangés, `app: 'AppMuscu'` gardé dans les sauvegardes). Tests 44/44, navigateur vérifié par le DOM. Bug encore ouvert : mode vidéo.
+- Retours du 2026-11-16 (fin de soirée), détail `RAPPORT-V2.3.md` section 11 : exercice phare avec ancienne meilleure série et écart (`beforeBest`) ; fin de séance toujours positive ; message de sauvegarde après « Voir mes succès » ; citation dans la carte Séance du jour ; exercices aux haltères (`pair`, migration `mig-pair`, volume × 2 via `setPairIds`/`sessionVolume` dans stats.js, facteur 1 en unilatéral) ; côté vide en unilatéral (`skip`). Tests 47/47, navigateur vérifié. Rien de commité.
+- Retours du 2026-11-16 (captures), détail `RAPPORT-V2.3.md` section 12 : équilibre sans calcul si un côté est sauté ; côté sauté = champ vide ensuite ; muscles des 8 exercices perso (migration `mig-muscles`) ; citation 40 % ; bouton Remplacer sous un titre long ; échelle `fit` par image dans exart.js et cadre 4:3 sur l'écran unilatéral. Tests 48/48, navigateur vérifié. Ouvert : `Side_Lateral_Raise.webp` n'est pas la mascotte. Rien de commité.
+- Prochaine étape : Johan teste en local (`node tools/serve.mjs`, port 8080), puis donne ou non son accord pour commit + push.

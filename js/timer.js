@@ -96,8 +96,8 @@ export class RestTimer {
   }
   get remainingMs() { return this.endAt ? Math.max(0, this.endAt - Date.now()) : 0; }
   get running() { return this.endAt !== null; }
-  start(sec) { this.total = sec; this.endAt = Date.now() + sec * 1000; this.#loop(); }
-  resume(endAt, total) { this.endAt = endAt; this.total = total; this.#loop(); }
+  start(sec) { this.total = sec; this.endAt = Date.now() + sec * 1000; this.startKey = this.endAt; this.#loop(); }
+  resume(endAt, total) { this.endAt = endAt; this.total = total; this.startKey ??= endAt; this.#loop(); }
   adjust(deltaSec) {
     if (!this.endAt) return;
     this.endAt = Math.max(Date.now() + 1000, this.endAt + deltaSec * 1000);

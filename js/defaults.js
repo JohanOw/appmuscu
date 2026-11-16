@@ -1,6 +1,8 @@
 // Données de départ : exercices et séances Push / Pull / Legs.
-// Images : yuhonas/free-exercise-db (licence Unlicense, domaine public), copiées dans img/ex/.
-const E = (id, name, muscles) => ({ id, name, muscles, image: `img/ex/${id}.jpg`, source: 'free-exercise-db' });
+// Noms et muscles : yuhonas/free-exercise-db (licence Unlicense, domaine public).
+// Images : personnages animés de js/exart.js (v2.3). Les anciennes photos img/ex/ ne sont plus livrées.
+const E = (id, name, muscles) => ({ id, name, muscles, image: '', source: 'free-exercise-db' });
+const A = (id, name, muscles) => ({ id, name, muscles, image: '', source: 'appmuscu' });
 
 export const DEFAULT_EXERCISES = [
   E('Barbell_Bench_Press_-_Medium_Grip', 'Développé couché', 'Pectoraux'),
@@ -27,7 +29,12 @@ export const DEFAULT_EXERCISES = [
   E('Leg_Extensions', 'Leg extension', 'Quadriceps'),
   E('Standing_Calf_Raises', 'Mollets debout', 'Mollets'),
   E('Seated_Calf_Raise', 'Mollets assis', 'Mollets'),
+  // v2.3 : ajoutés aussi au démarrage chez un utilisateur existant (voir NEW_DEFAULTS_V23).
+  A('Belt_Squat', 'Belt squat', 'Quadriceps, Fessiers'),
+  A('Machine_Crunch', 'Crunch à la machine', 'Abdominaux'),
 ];
+
+export const NEW_DEFAULTS_V23 = ['Belt_Squat', 'Machine_Crunch'];
 
 const item = (exerciseId, sets = 3) => ({ exerciseId, sets });
 

@@ -136,10 +136,12 @@ export function showFinale({ workoutName, complete, core = false, stats }) {
     return close;
   }
   if (!complete) {
-    $('.fn-big').textContent = 'FIN ANTICIPÉE';
-    $('.fn-sub').textContent = 'Les 2 premiers exercices n\'étaient pas finis. La prochaine sera la bonne.';
-    $('.fn-spr').innerHTML = sprite('chute', 240, { once: true });
-    at(reduced() ? 0 : 2800, () => { $('.fn-say').textContent = 'Je me relève et je reviens !'; $('.fn-say').classList.add('on'); });
+    // Toujours positif : être venu et avoir fait sa séance, c'est déjà gagné.
+    $('.fn-big').textContent = 'SÉANCE FAITE';
+    $('.fn-sub').textContent = 'Tu es venu, tu l’as fait : c’est ça qui compte.';
+    if (reduced()) { pose('Bien joué !'); return close; }
+    $('.fn-spr').innerHTML = sprite('saut', 260, { once: true });
+    at(SPRITES.saut.ms, () => pose('Bien joué !'));
     return close;
   }
   $('.fn-big').textContent = 'DERNIÈRE SÉRIE';

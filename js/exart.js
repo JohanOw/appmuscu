@@ -4,15 +4,62 @@
 // decor : 1 = salle à machines (poulie, miroir), pour machines, poulies et Smith ;
 //         2 = salle à baie vitrée (haltères, tapis), pour poids libres et poids du corps.
 // glow (facultatif, images fixes seulement) : zones de lueur rouge [x %, y %, rayon %].
+// src (facultatif) : réutilise le fichier d'un autre exercice (même machine).
+// fit (facultatif, 1 par défaut) : échelle de l'image dans la salle, pour que la tête du personnage
+//   ait à peu près la même taille partout (les plans serrés sont réduits, jamais d'agrandissement).
 export const EX_ART = {
-  Incline_Dumbbell_Press: { decor: 2 },
-  Barbell_Hip_Thrust: { decor: 2 },
-  Leverage_Chest_Press: { decor: 1 },
-  Butterfly: { decor: 1 },
+  Incline_Dumbbell_Press: { decor: 2, fit: 0.7 },
+  Barbell_Hip_Thrust: { decor: 2, fit: 0.7 },
+  Leverage_Chest_Press: { decor: 1, fit: 0.7 },
+  Butterfly: { decor: 1, fit: 0.75 },
+  // v2.3 (bank/mascotte/exercices/CORRESPONDANCE.md)
+  Leg_Extensions: { decor: 1, fit: 0.75 },
+  Thigh_Abductor: { decor: 1, fit: 0.73 },
+  Standing_Calf_Raises: { decor: 1 },
+  'Wide-Grip_Lat_Pulldown': { decor: 1 },
+  Side_Lateral_Raise: { decor: 1 },
+  Triceps_Pushdown: { decor: 1 },
+  Concentration_Curls: { decor: 2, fit: 0.7 },
+  Pullups: { decor: 2 },
+  'Barbell_Bench_Press_-_Medium_Grip': { decor: 2, fit: 0.9 },
+  Belt_Squat: { decor: 1 },
+  Machine_Crunch: { decor: 1 },
+  // Exercices perso de Johan (identifiants de son téléphone)
+  custom_mw6hkglnchdog: { decor: 1 }, // Pendulum Squat
+  custom_mw6hm706zjuhl: { decor: 2, fit: 0.7, src: 'Barbell_Hip_Thrust' }, // Hip thrust
+  custom_mwc3nyqh9vvel: { decor: 1, fit: 0.7, src: 'Leverage_Chest_Press' }, // Développé couché convergent
+  custom_mwc3obllxirnj: { decor: 1, fit: 0.7 }, // Développé militaire convergent
+  custom_mwc3oro6mhl0o: { decor: 1, src: 'Wide-Grip_Lat_Pulldown' }, // Tirage haut convergent
+  custom_mwc3p45el78ed: { decor: 1, fit: 0.85 }, // Rowing convergent
+  custom_mwc3pgerg6alc: { decor: 1 }, // Triceps poulie haute
+  custom_mwc3r8k4gkz8e: { decor: 1 }, // Abdos machine allongé
 };
 
-export const artSrc = (id) => `img/mascotte/ex/${id}.webp`;
-export const decorOf = (id) => (EX_ART[id]?.decor === 2 ? 2 : 1);
+// Repli par nom exact (sans accents ni casse) si l'identifiant n'est pas connu.
+const norm = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const BY_NAME = {
+  'pendulum squat': 'custom_mw6hkglnchdog',
+  'hip thrust': 'custom_mw6hm706zjuhl',
+  'developpe couche convergent': 'custom_mwc3nyqh9vvel',
+  'developpe militaire convergent': 'custom_mwc3obllxirnj',
+  'tirage haut convergent': 'custom_mwc3oro6mhl0o',
+  'rowing convergent': 'custom_mwc3p45el78ed',
+  'triceps poulie haute': 'custom_mwc3pgerg6alc',
+  'abdos machine allonge': 'custom_mwc3r8k4gkz8e',
+  'belt squat': 'Belt_Squat',
+  'crunch a la machine': 'Machine_Crunch',
+};
+
+/** Clé EX_ART d'un exercice : son identifiant, sinon son nom exact, sinon null. */
+export function artKey(ex) {
+  if (!ex) return null;
+  if (EX_ART[ex.id]) return ex.id;
+  return BY_NAME[norm(ex.name)] || null;
+}
+
+export const artSrc = (key) => `img/mascotte/ex/${EX_ART[key]?.src || key}.webp`;
+export const fitOf = (key) => Math.min(1, Math.max(0.5, Number(EX_ART[key]?.fit) || 1));
+export const decorOf = (key) => (EX_ART[key]?.decor === 2 ? 2 : 1);
 
 /** Lueur rouge sur l'image : masquée par la silhouette pour ne colorer que le corps. */
 export function glowLayer(id) {
